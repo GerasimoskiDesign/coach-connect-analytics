@@ -96,8 +96,9 @@ test('GA4 event tags: event name lookup, measurement ID override, ecommerce only
   assert.ok(ecommerce && other);
   assert.equal(param(ecommerce, 'getEcommerceDataFrom').value, 'dataLayer');
 
-  const mapped = tableRows(param(other, 'eventSettingsTable')).map(r => r.parameter);
-  for (const key of DLV_KEYS.filter(k => k !== 'rec_variant')) assert.ok(mapped.includes(key), `${key} not sent`);
+  // Every DLV except the user property is sent by exactly one of the two tags.
+  const sent = [ecommerce, other].flatMap(t => tableRows(param(t, 'eventSettingsTable')).map(r => r.parameter));
+  assert.deepEqual([...sent].sort(), DLV_KEYS.filter(k => k !== 'rec_variant').sort());
 });
 
 test('triggers match exactly the tracked event names from the tracking plan', () => {

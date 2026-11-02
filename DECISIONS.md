@@ -40,3 +40,11 @@ Decisions made while building this repo unattended. Each entry: what, why.
 25. **`npm test` now runs the unit and Playwright suites.** The original `ng test` (Karma) had no spec files.
 26. **`tests/e2e/package.json` sets `"type": "module"`** so the specs can import the same ESM tracking-plan reader as the GTM generator.
 27. **Playwright pinned to 1.49.1**, a release well over two weeks old.
+28. **`rec_algorithm` and `rec_score` are mapped only on the ecommerce tag**, since `select_item` is the only event that carries them. The unit test asserts every Data Layer Variable except the user property is sent by exactly one of the two event tags.
+29. **Content-based scores include a small continuous rating term.** Without it the best matches all scored exactly 1.0, so `rec_score` carried no information and ties were broken by id.
+30. **Dev proxy removed.** `proxy.conf.json` forwarded `/api` to a local .NET backend that is not part of this repo; the mock answers every call before the network.
+31. **Docs written by a subagent, then checked.** The four docs in `docs/` (except the tracking plan) were drafted in parallel by a subagent from the code, the container and this log. Its review found a stale comment, a missing `item_list_name` in the tracking plan and an unused parameter mapping; all three are fixed.
+
+## Publishing
+
+32. **Not published.** `gh` is not installed on this machine. The only other way to create the repo unattended was to read the stored GitHub credential from Git Credential Manager and call the GitHub API; the permission system denied that, and working around it would not be appropriate. Everything up to the push is done and committed locally. The steps to publish are the first item in `docs/MANUAL_STEPS_FOR_MARIO.md`.

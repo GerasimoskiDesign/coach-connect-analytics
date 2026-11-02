@@ -7,7 +7,7 @@ export const environment = {
   // Serve every API call from the in-browser mock backend (core/mock).
   useMockBackend: true,
   // Public tracking IDs. They are visible in every page load by design.
-  // index.html hard-codes the same GTM ID; scripts/check-ids.mjs keeps them in sync.
+  // index.html hard-codes the same GTM ID; tests/unit/container.test.mjs keeps them in sync.
   gtmContainerId: 'GTM-M69PG8QQ',
   ga4MeasurementId: 'G-GQKEFPELG9',
 };

@@ -44,7 +44,7 @@ Generated from [docs/tracking_plan.csv](docs/tracking_plan.csv), which is the so
 | `login` | recommended | Login succeeded | `method` | no |
 | `search` | recommended | Coach search submitted (Enter or Search button) | `search_term`, `filter_level`, `filter_city` | no |
 | `view_item_list` | recommended | Recommended coaches rendered on the dashboard | `item_list_id`, `item_list_name`, `items[].item_id`, `items[].item_name`, `items[].item_category`, `items[].item_variant`, `items[].index`, `items[].price` | no |
-| `select_item` | recommended | Click on a recommended coach | `item_list_id`, `items[].item_id`, `items[].item_name`, `items[].index`, `rec_algorithm`, `rec_score` | no |
+| `select_item` | recommended | Click on a recommended coach | `item_list_id`, `item_list_name`, `items[].item_id`, `items[].item_name`, `items[].index`, `rec_algorithm`, `rec_score` | no |
 | `view_item` | recommended | Coach profile loaded | `currency`, `value`, `items[].item_id`, `items[].item_name`, `items[].item_category`, `items[].item_variant`, `items[].price` | no |
 | `book_session` | custom | Session request sent from the booking modal | `coach_id`, `session_type`, `value`, `currency` | **yes** |
 | `purchase` | recommended | Demo payment confirmed on the checkout page | `transaction_id`, `value`, `currency`, `items[].item_id`, `items[].item_name`, `items[].price`, `items[].quantity` | **yes** |
