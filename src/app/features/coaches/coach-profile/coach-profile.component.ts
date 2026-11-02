@@ -84,7 +84,7 @@ const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
           <div class="stats-row">
             <div class="stat-item">
               <span class="stat-value">{{ c.hourlyRate.toLocaleString('en-US') }}</span>
-              <span class="stat-label">MKD/hour</span>
+              <span class="stat-label">EUR/hour</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">

@@ -268,7 +268,7 @@ export class DashboardComponent {
 
   recMeta(rec: RecommendedCoachDto | RecommendedPlayerDto): string {
     if ('hourlyRate' in rec) {
-      const rate = `${rec.hourlyRate.toLocaleString('en-US')} MKD/h`;
+      const rate = `${rec.hourlyRate.toLocaleString('en-US')} EUR/h`;
       return rec.primarySpecialty
         ? `${rec.city} · ${rate} · ${rec.primarySpecialty}`
         : `${rec.city} · ${rate}`;
@@ -338,6 +338,6 @@ export class DashboardComponent {
   }
 
   formatPrice(mkd: number): string {
-    return mkd.toLocaleString('en-US') + ' MKD';
+    return mkd.toLocaleString('en-US') + ' EUR';
   }
 }

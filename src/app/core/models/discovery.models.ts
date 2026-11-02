@@ -30,7 +30,14 @@ export interface CoachProfileDto {
   ageGroups: AgeGroup[];
   coachingApproaches: CoachingApproach[];
   createdAt: string;
+  // Demo-only fields served by the mock backend (not in the real API contract).
+  rating?: number;
+  reviewCount?: number;
+  level?: CoachLevel;
 }
+
+/** Main player level a coach works with. Used as GA4 item_variant. */
+export type CoachLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Elite';
 
 export interface PlayerProfileDto {
   userId: string;
@@ -64,6 +71,8 @@ export interface CoachFilterParams {
   trainingStyle?: CoachingStyle;
   acceptingNewPlayers?: boolean;
   city?: string;
+  /** Free-text search over name, city and specialties. */
+  q?: string;
   page?: number;
   pageSize?: number;
 }

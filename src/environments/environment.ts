@@ -1,7 +1,13 @@
 export const environment = {
   production: false,
   apiUrl: '/api/v1',
-  // Step 5C: Python ML service, called directly (fire-and-forget) for
-  // /admin/reload after onboarding. Empty string disables the call.
-  mlServiceUrl: 'http://localhost:8000',
+  // The Python ML service is not part of this repo. Empty disables the
+  // post-onboarding /admin/reload call (see RecommendationsService).
+  mlServiceUrl: '',
+  // Serve every API call from the in-browser mock backend (core/mock).
+  useMockBackend: true,
+  // Public tracking IDs. They are visible in every page load by design.
+  // index.html hard-codes the same GTM ID; scripts/check-ids.mjs keeps them in sync.
+  gtmContainerId: 'GTM-M69PG8QQ',
+  ga4MeasurementId: 'G-GQKEFPELG9',
 };
