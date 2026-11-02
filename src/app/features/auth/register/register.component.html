@@ -1,0 +1,104 @@
+<app-auth-layout title="Create account">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="fields">
+      <app-form-field
+        label="Email"
+        type="email"
+        [control]="email"
+        autocomplete="email"
+        [errorMessages]="{ required: 'Email is required.', email: 'Enter a valid email address.' }"
+      />
+      <div class="name-row">
+        <app-form-field
+          label="First name"
+          [control]="firstName"
+          autocomplete="given-name"
+          [errorMessages]="{ required: 'First name is required.' }"
+        />
+        <app-form-field
+          label="Last name"
+          [control]="lastName"
+          autocomplete="family-name"
+          [errorMessages]="{ required: 'Last name is required.' }"
+        />
+      </div>
+      <app-form-field
+        label="Phone number"
+        type="tel"
+        [control]="phoneNumber"
+        autocomplete="tel"
+        [errorMessages]="{ required: 'Phone number is required.' }"
+      />
+      <div class="city-field">
+        <label class="city-label" for="city-select">City</label>
+        <select
+          id="city-select"
+          [formControl]="city"
+          class="city-select"
+          [class.is-invalid]="city.invalid && city.touched"
+        >
+          <option value="" disabled>Select city</option>
+          <option value="Skopje">Skopje</option>
+          <option value="Bitola">Bitola</option>
+          <option value="Kumanovo">Kumanovo</option>
+          <option value="Prilep">Prilep</option>
+          <option value="Tetovo">Tetovo</option>
+          <option value="Veles">Veles</option>
+          <option value="Ohrid">Ohrid</option>
+          <option value="Gostivar">Gostivar</option>
+          <option value="Strumica">Strumica</option>
+          <option value="Shtip">Shtip</option>
+        </select>
+        @if (city.invalid && city.touched) {
+          <p class="city-error">City is required.</p>
+        }
+      </div>
+      <app-form-field
+        label="Password"
+        type="password"
+        [control]="password"
+        autocomplete="new-password"
+        [errorMessages]="{
+          required: 'Password is required.',
+          minlength: 'At least 8 characters.',
+          noLetter: 'Must contain at least one letter.',
+          noDigit: 'Must contain at least one number.'
+        }"
+      />
+      <app-form-field
+        label="Confirm password"
+        type="password"
+        [control]="confirmPassword"
+        autocomplete="new-password"
+        [errorMessages]="{ required: 'Please confirm your password.' }"
+        [externalError]="passwordMismatchError"
+      />
+      <div class="role-section">
+        <p class="role-label">I am a…</p>
+        <div class="role-group">
+          <label class="role-card" [class.selected]="role.value === 'Player'">
+            <input type="radio" formControlName="role" value="Player" class="sr-only" />
+            <span class="role-name">Player</span>
+            <span class="role-desc">I want to find a coach</span>
+          </label>
+          <label class="role-card" [class.selected]="role.value === 'Coach'">
+            <input type="radio" formControlName="role" value="Coach" class="sr-only" />
+            <span class="role-name">Coach</span>
+            <span class="role-desc">I offer coaching services</span>
+          </label>
+        </div>
+        <p class="profile-note">You'll complete your tennis profile right after creating your account.</p>
+      </div>
+    </div>
+    @if (serverError) {
+      <p class="server-error">{{ serverError }}</p>
+    }
+    <app-button
+      label="Create account"
+      type="submit"
+      [loading]="loading"
+      loadingLabel="Creating account…"
+    />
+  </form>
+  <p class="footer-link">Already have an account? <a routerLink="/login">Sign in</a></p>
+</app-auth-layout>
