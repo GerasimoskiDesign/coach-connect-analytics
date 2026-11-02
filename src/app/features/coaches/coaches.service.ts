@@ -17,6 +17,7 @@ export class CoachesService {
     if (filters.trainingStyle != null) params = params.set('trainingStyle', filters.trainingStyle);
     if (filters.acceptingNewPlayers != null) params = params.set('acceptingNewPlayers', String(filters.acceptingNewPlayers));
     if (filters.city != null) params = params.set('city', filters.city);
+    if (filters.q) params = params.set('q', filters.q);
     if (filters.page != null) params = params.set('page', String(filters.page));
     if (filters.pageSize != null) params = params.set('pageSize', String(filters.pageSize));
     return this.http.get<CoachProfileDto[]>(`${this.base}/coaches`, { params });

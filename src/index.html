@@ -2,12 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>CoachConnectClient</title>
+  <title>Coach Connect+</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Coach Connect+ analytics demo: GA4 and Google Tag Manager on a tennis coaching platform. Synthetic data.">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+  <!-- Consent Mode v2: everything denied by default. Must run before GTM loads. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', {
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+      analytics_storage: 'denied',
+      wait_for_update: 500
+    });
+    // Returning visitor: re-apply the stored choice before any tag fires.
+    // Key must match CONSENT_KEY in src/app/core/analytics/consent.service.ts.
+    (function () {
+      var choice = null;
+      try { choice = window.localStorage.getItem('cc_consent'); } catch (e) {}
+      if (choice === 'granted' || choice === 'denied') {
+        gtag('consent', 'update', {
+          ad_storage: choice,
+          ad_user_data: choice,
+          ad_personalization: choice,
+          analytics_storage: choice
+        });
+      }
+    })();
+  </script>
+
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-M69PG8QQ');</script>
+  <!-- End Google Tag Manager -->
 </head>
 <body>
+  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-M69PG8QQ"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
   <app-root></app-root>
 </body>
 </html>
