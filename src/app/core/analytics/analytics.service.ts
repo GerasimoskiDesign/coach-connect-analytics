@@ -23,6 +23,18 @@ declare global {
 }
 
 const USER_PROPS_SENT_KEY = 'cc_user_props_sent';
+
+/**
+ * Event-level keys mapped to GA4 parameters in GTM. GTM keeps every pushed key
+ * in its data model until it is overwritten, so a `value` or `search_term` from
+ * an earlier event would otherwise be attached to every later event. Each event
+ * push sets the keys it does not use to undefined, which GTM treats as "not set".
+ * Page keys are left alone: they always describe the current page.
+ */
+const EVENT_SCOPED_KEYS = [
+  'method', 'search_term', 'filter_level', 'filter_city', 'rec_algorithm',
+  'rec_score', 'coach_id', 'session_type', 'value', 'currency',
+] as const;
 const PURCHASES_SENT_KEY = 'cc_purchases_sent';
 
 /**
@@ -165,7 +177,10 @@ export class AnalyticsService {
   }
 
   private push(entry: DataLayerEntry): void {
-    (window.dataLayer = window.dataLayer ?? []).push(entry);
+    const payload: Record<string, unknown> = 'event' in entry
+      ? { ...Object.fromEntries(EVENT_SCOPED_KEYS.map(k => [k, undefined])), ...entry }
+      : entry;
+    (window.dataLayer = window.dataLayer ?? []).push(payload);
   }
 
   private gtag(...args: unknown[]): void {
