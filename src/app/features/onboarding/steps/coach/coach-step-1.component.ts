@@ -8,7 +8,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
   template: `
     <div class="step" [formGroup]="group()">
       <div class="field">
-        <label class="label" [for]="rateId">Hourly Rate (MKD)</label>
+        <label class="label" [for]="rateId">Hourly Rate (EUR)</label>
         <p class="sub">Your rate per coaching hour in Macedonian Denar.</p>
         <input
           [id]="rateId"
@@ -27,8 +27,8 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
           <p class="error">
             @if (group().get('hourlyRate')!.errors?.['required']) { Hourly rate is required. }
             @else if (group().get('hourlyRate')!.errors?.['wholeNumber']) { Hourly rate must be a whole number. }
-            @else if (group().get('hourlyRate')!.errors?.['min']) { Rate must be at least 1 MKD. }
-            @else if (group().get('hourlyRate')!.errors?.['max']) { Rate cannot exceed 9,999 MKD. }
+            @else if (group().get('hourlyRate')!.errors?.['min']) { Rate must be at least 1 EUR. }
+            @else if (group().get('hourlyRate')!.errors?.['max']) { Rate cannot exceed 9,999 EUR. }
           </p>
         }
       </div>

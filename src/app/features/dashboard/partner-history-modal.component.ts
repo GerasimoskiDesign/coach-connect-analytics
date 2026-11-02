@@ -234,6 +234,6 @@ export class PartnerHistoryModalComponent {
   }
 
   formatPrice(mkd: number): string {
-    return mkd.toLocaleString('en-US') + ' MKD';
+    return mkd.toLocaleString('en-US') + ' EUR';
   }
 }

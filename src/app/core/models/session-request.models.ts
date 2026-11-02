@@ -67,3 +67,13 @@ export interface CompletedSessionDto {
   sessionType: SessionType;
   estimatedPriceMkd: number | null;
 }
+
+/** Demo-only: result of the mock checkout (POST /payments). */
+export interface PaymentDto {
+  transactionId: string;
+  sessionRequestId: string;
+  amount: number;
+  currency: 'EUR';
+  status: 'paid';
+  paidAt: string;
+}

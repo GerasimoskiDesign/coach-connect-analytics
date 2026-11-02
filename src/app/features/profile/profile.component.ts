@@ -131,7 +131,7 @@ const CIRC_SM = 157.08; // r=25
                 </span>
                 <span class="ph-tag">
                   <span class="dot"></span>
-                  {{ formatRate(c.hourlyRate) }} MKD/hr
+                  {{ formatRate(c.hourlyRate) }} EUR/hr
                 </span>
                 <span class="ph-tag" [class.accepting]="c.acceptingNewPlayers">
                   <span class="dot"></span>
@@ -550,7 +550,7 @@ const CIRC_SM = 157.08; // r=25
                       <span class="card-label">Pricing &amp; availability</span>
                       <button class="card-edit" (click)="editing.set(true)">Edit</button>
                     </div>
-                    <div class="def-row bordered-top"><span class="def-k">Hourly rate</span><span class="def-v">{{ formatRate(c.hourlyRate) }} MKD</span></div>
+                    <div class="def-row bordered-top"><span class="def-k">Hourly rate</span><span class="def-v">{{ formatRate(c.hourlyRate) }} EUR</span></div>
                     <div class="def-row"><span class="def-k">Accepting new players</span>
                       <span class="def-v" [class.accepting-yes]="c.acceptingNewPlayers"
                             [class.accepting-no]="!c.acceptingNewPlayers">

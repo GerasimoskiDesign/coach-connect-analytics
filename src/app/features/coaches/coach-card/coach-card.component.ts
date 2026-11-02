@@ -42,7 +42,7 @@ const SPECIALTY_LABELS: Record<Specialty, string> = {
         <div class="stats">
           <div class="stat">
             <span class="stat-value">{{ coach.hourlyRate.toLocaleString('en-US') }}</span>
-            <span class="stat-label">MKD/hour</span>
+            <span class="stat-label">EUR/hour</span>
           </div>
           <div class="stat-divider"></div>
           <div class="stat">

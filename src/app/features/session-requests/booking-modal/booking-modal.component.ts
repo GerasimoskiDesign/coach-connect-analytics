@@ -1029,13 +1029,13 @@ export class BookingModalComponent {
   get summaryOriginalPrice(): string | null {
     if (!this.hourlyRate) return null;
     const dur = this.form.getRawValue().durationMinutes;
-    return `${Math.round(this.hourlyRate * dur / 60)} MKD`;
+    return `${Math.round(this.hourlyRate * dur / 60)} EUR`;
   }
 
   get summaryDiscountedPrice(): string | null {
     if (!this.hourlyRate || this.discountPercent <= 0) return null;
     const dur = this.form.getRawValue().durationMinutes;
-    return `${Math.round(this.hourlyRate * dur / 60 * (1 - this.discountPercent / 100))} MKD`;
+    return `${Math.round(this.hourlyRate * dur / 60 * (1 - this.discountPercent / 100))} EUR`;
   }
 
   get canSubmit(): boolean {

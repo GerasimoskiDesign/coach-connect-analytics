@@ -74,7 +74,7 @@ const AGE_GROUP_OPTIONS: { value: AgeGroup; label: string; sub: string }[] = [
         <p class="section-label">Pricing &amp; Availability</p>
 
         <div class="field">
-          <label class="field-label" [for]="rateId">Hourly Rate (MKD)</label>
+          <label class="field-label" [for]="rateId">Hourly Rate (EUR)</label>
           <p class="field-sub">Your rate per coaching hour in Macedonian Denar.</p>
           <input [id]="rateId" type="number" class="input"
                  [class.is-invalid]="touched('hourlyRate') && invalid('hourlyRate')"
@@ -85,8 +85,8 @@ const AGE_GROUP_OPTIONS: { value: AgeGroup; label: string; sub: string }[] = [
           @if (touched('hourlyRate') && invalid('hourlyRate')) {
             <p class="field-error">
               @if (errors('hourlyRate')?.['required'])         { Hourly rate is required. }
-              @else if (errors('hourlyRate')?.['min'])         { Must be at least 1 MKD. }
-              @else if (errors('hourlyRate')?.['max'])         { Cannot exceed 9,999 MKD. }
+              @else if (errors('hourlyRate')?.['min'])         { Must be at least 1 EUR. }
+              @else if (errors('hourlyRate')?.['max'])         { Cannot exceed 9,999 EUR. }
               @else if (errors('hourlyRate')?.['wholeNumber']) { Must be a whole number. }
             </p>
           }

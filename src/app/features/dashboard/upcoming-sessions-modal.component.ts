@@ -307,6 +307,6 @@ export class UpcomingSessionsModalComponent {
   }
 
   formatPrice(mkd: number): string {
-    return mkd.toLocaleString('en-US') + ' MKD';
+    return mkd.toLocaleString('en-US') + ' EUR';
   }
 }

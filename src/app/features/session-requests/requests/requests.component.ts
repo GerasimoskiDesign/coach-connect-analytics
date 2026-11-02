@@ -8,7 +8,7 @@ import { SessionRequestDto } from '../../../core/models/session-request.models';
 import { RescheduleModalComponent } from '../reschedule-modal/reschedule-modal.component';
 
 function formatPrice(mkd: number): string {
-  return mkd.toLocaleString('en-US') + ' MKD';
+  return mkd.toLocaleString('en-US') + ' EUR';
 }
 
 function formatDateTime(iso: string): string {
