@@ -30,13 +30,13 @@ function contentScore(c: MockCoach, me: PlayerProfileDto): { score: number; reas
   let score = 0;
 
   if (c.skillLevelGroups.includes(SKILL_GROUP_FOR_LEVEL(me.skillLevel))) {
-    score += 0.35;
+    score += 0.3;
     reasons.push(`Coaches players at your level (${me.skillLevel})`);
   }
   const wanted = new Set(me.mainGoals.flatMap(g => GOAL_TO_SPECIALTIES[g] ?? []));
   const overlap = c.specialties.filter(s => wanted.has(s));
   if (overlap.length > 0) {
-    score += Math.min(0.3, 0.15 * overlap.length);
+    score += Math.min(0.25, 0.125 * overlap.length);
     reasons.push(`Specialises in ${overlap.map(label).join(', ').toLowerCase()}`);
   }
   if (me.preferredSurface === 'NoPreference' || c.preferredSurfaces.includes(me.preferredSurface)) {
@@ -44,11 +44,12 @@ function contentScore(c: MockCoach, me: PlayerProfileDto): { score: number; reas
     reasons.push(`Trains on ${label(me.preferredSurface === 'NoPreference' ? c.preferredSurfaces[0] : me.preferredSurface).toLowerCase()}`);
   }
   if (c.city === me.city) {
-    score += 0.15;
+    score += 0.12;
     reasons.push(`Based in ${c.city}`);
   }
   if (c.trainingStyle === me.preferredCoachingStyle) score += 0.05;
-  if (c.acceptingNewPlayers) score += 0.05;
+  // Continuous quality term (rating 3.6 to 5.0) so equally good fits do not tie.
+  score += 0.18 * (c.rating - 3.6) / 1.4;
 
   return { score: round3(Math.min(1, score)), reasons };
 }
