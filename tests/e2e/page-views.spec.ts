@@ -1,4 +1,5 @@
-import { Page, expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { acceptConsent, events, signUp, stubGoogle, waitForEvent } from './helpers';
 
 const pageViews = (page: Page) => events(page, 'page_view_spa');

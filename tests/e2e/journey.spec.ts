@@ -1,8 +1,10 @@
-import { Page, expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
-  ECOMMERCE_EVENTS, Entry, PLAN, UNDEFINED, acceptConsent, dataLayer, events, isEvent,
+  ECOMMERCE_EVENTS, PLAN, UNDEFINED, acceptConsent, dataLayer, events, isEvent,
   missingPaths, signUp, stubGoogle, waitForEvent,
 } from './helpers';
+import type { Entry } from './helpers';
 
 // One full visitor journey, recorded once and checked from several angles.
 test.describe.configure({ mode: 'serial' });
