@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { AnalyticsService } from '../../../core/analytics/analytics.service';
 import { AuthLayoutComponent } from '../../../shared/ui/auth-layout/auth-layout.component';
 import { FormFieldComponent } from '../../../shared/ui/form-field/form-field.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -17,6 +18,7 @@ export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly analytics = inject(AnalyticsService);
 
   passwordResetSuccess = false;
 
@@ -45,7 +47,10 @@ export class LoginComponent {
     this.serverError = null;
     const v = this.form.getRawValue();
     this.authService.login({ email: v.email, password: v.password }).subscribe({
-      next: () => this.router.navigate(['/dashboard']),
+      next: () => {
+        this.analytics.login();
+        this.router.navigate(['/dashboard']);
+      },
       error: (err) => {
         this.loading = false;
         this.serverError = this.resolveError(err);

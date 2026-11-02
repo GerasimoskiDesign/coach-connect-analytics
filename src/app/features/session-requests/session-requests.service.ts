@@ -19,6 +19,10 @@ export class SessionRequestsService {
     return this.http.post<SessionRequestDto>(`${this.base}/session-requests`, dto);
   }
 
+  getById(id: string): Observable<SessionRequestDto> {
+    return this.http.get<SessionRequestDto>(`${this.base}/session-requests/${id}`);
+  }
+
   getInbox(): Observable<SessionRequestDto[]> {
     return this.http.get<SessionRequestDto[]>(`${this.base}/session-requests/inbox`);
   }

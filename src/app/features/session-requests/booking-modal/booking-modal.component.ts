@@ -3,7 +3,8 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TennisClubsService } from '../tennis-clubs.service';
 import { SessionRequestsService } from '../session-requests.service';
-import { TennisClubDto } from '../../../core/models/session-request.models';
+import { SessionRequestDto, TennisClubDto } from '../../../core/models/session-request.models';
+import { AnalyticsService } from '../../../core/analytics/analytics.service';
 
 interface CalDay {
   date: Date;
@@ -958,11 +959,12 @@ export class BookingModalComponent {
   @Input() discountPercent: number = 0;
   @Input() visible = false;
   @Output() closed = new EventEmitter<void>();
-  @Output() submitted = new EventEmitter<void>();
+  @Output() submitted = new EventEmitter<SessionRequestDto>();
 
   private readonly fb = inject(FormBuilder);
   private readonly clubsService = inject(TennisClubsService);
   private readonly sessionService = inject(SessionRequestsService);
+  private readonly analytics = inject(AnalyticsService);
 
   readonly DOW_LABELS = DOW_LABELS;
   readonly TIME_SLOTS = TIME_SLOTS;
@@ -1024,6 +1026,13 @@ export class BookingModalComponent {
     const dur = this.form.getRawValue().durationMinutes;
     const clubName = this.clubs().find(c => c.id === this.form.getRawValue().tennisClubId)?.name ?? '';
     return `${dur}-minute session${clubName ? ' · ' + clubName : ''}`;
+  }
+
+  /** Price the player will pay, after any loyalty discount. 0 for free practice sessions. */
+  private get finalPrice(): number {
+    if (!this.hourlyRate) return 0;
+    const dur = this.form.getRawValue().durationMinutes;
+    return Math.round(this.hourlyRate * dur / 60 * (1 - this.discountPercent / 100));
   }
 
   get summaryOriginalPrice(): string | null {
@@ -1111,12 +1120,17 @@ export class BookingModalComponent {
       durationMinutes: v.durationMinutes,
       note:            v.note || undefined,
     }).subscribe({
-      next: () => {
+      next: (created) => {
+        this.analytics.bookSession({
+          coach_id: this.hourlyRate ? this.receiverId : 'none',
+          session_type: this.hourlyRate ? 'coaching' : 'practice',
+          value: this.finalPrice,
+        });
         this.loading = false;
         this.selectedDate = null;
         this.selectedTime = null;
         this.form.reset({ durationMinutes: 60, year: String(new Date().getFullYear()) });
-        this.submitted.emit();
+        this.submitted.emit(created);
       },
       error: (err: { error?: { detail?: string } }) => {
         this.loading = false;

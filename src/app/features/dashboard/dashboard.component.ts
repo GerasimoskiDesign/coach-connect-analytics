@@ -10,6 +10,12 @@ import { RecommendationsService } from '../recommendations/recommendations.servi
 import { UpcomingSessionDto, CompletedSessionDto } from '../../core/models/session-request.models';
 import { CoachPlayerProgressionDto } from '../../core/models/progression.models';
 import { RecommendedCoachDto, RecommendedPlayerDto } from '../../core/models/recommendation.models';
+import { AnalyticsService } from '../../core/analytics/analytics.service';
+import { ExperimentService } from '../../core/analytics/experiment.service';
+import { coachItem } from '../../core/analytics/analytics-items';
+
+/** How many recommendations the dashboard shows (and reports in view_item_list). */
+const REC_DISPLAY_COUNT = 5;
 import { UpcomingSessionsModalComponent } from './upcoming-sessions-modal.component';
 import { PartnerHistoryModalComponent } from './partner-history-modal.component';
 
@@ -25,6 +31,10 @@ export class DashboardComponent {
   private readonly sessionRequestsService = inject(SessionRequestsService);
   private readonly progressionService = inject(ProgressionService);
   private readonly recommendationsService = inject(RecommendationsService);
+  private readonly analytics = inject(AnalyticsService);
+  private readonly experiment = inject(ExperimentService);
+
+  readonly REC_DISPLAY_COUNT = REC_DISPLAY_COUNT;
 
   showUpcomingModal = false;
   readonly selectedCounterpartId = signal<string | null>(null);
@@ -110,7 +120,15 @@ export class DashboardComponent {
             ? this.recommendationsService.getCoachRecommendations()
             : this.recommendationsService.getPlayerRecommendations();
         return source$.pipe(
-          catchError(() => of([] as (RecommendedCoachDto | RecommendedPlayerDto)[]))
+          catchError(() => of([] as (RecommendedCoachDto | RecommendedPlayerDto)[])),
+          tap(list => {
+            // Only coach recommendations are bookable items; player matches are not tracked as a list.
+            if (type === 'coaches' && list.length > 0) {
+              this.analytics.viewRecommendedList(
+                (list as RecommendedCoachDto[]).slice(0, REC_DISPLAY_COUNT).map(r => coachItem(r, r.rank)),
+              );
+            }
+          }),
         );
       }),
       tap(() => this.recommendationsLoading.set(false))
@@ -280,6 +298,12 @@ export class DashboardComponent {
    *  flow already lives) — coaches → /coaches/:id, players → /players/:id. */
   recRoute(rec: RecommendedCoachDto | RecommendedPlayerDto): string[] {
     return 'hourlyRate' in rec ? ['/coaches', rec.userId] : ['/players', rec.userId];
+  }
+
+  /** select_item for a recommended coach. index is the 1-based rank shown in the UI. */
+  trackRecClick(rec: RecommendedCoachDto | RecommendedPlayerDto): void {
+    if (!('hourlyRate' in rec)) return;
+    this.analytics.selectRecommendedItem(coachItem(rec, rec.rank), this.experiment.recVariant, rec.score);
   }
 
   /** Up to 4 reason bullets from the ML response (empty list if none). */

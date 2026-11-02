@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith } from 'rxjs';
+import { catchError, map, of, startWith, tap } from 'rxjs';
 import { NavComponent } from '../../../shared/ui/nav/nav.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { AvatarComponent } from '../../../shared/ui/avatar/avatar.component';
@@ -12,6 +12,9 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ProgressionService } from '../../progression/progression.service';
 import { BookingModalComponent } from '../../session-requests/booking-modal/booking-modal.component';
 import { CoachProfileDto } from '../../../core/models/discovery.models';
+import { SessionRequestDto } from '../../../core/models/session-request.models';
+import { AnalyticsService } from '../../../core/analytics/analytics.service';
+import { coachItem } from '../../../core/analytics/analytics-items';
 import { AgeGroup, SkillLevelGroup, Specialty, Surface } from '../../../core/models/auth.models';
 
 const SPECIALTY_LABELS: Record<Specialty, string> = {
@@ -86,6 +89,13 @@ const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
               <span class="stat-value">{{ c.hourlyRate.toLocaleString('en-US') }}</span>
               <span class="stat-label">EUR/hour</span>
             </div>
+            @if (c.rating) {
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <span class="stat-value">{{ c.rating.toFixed(1) }}</span>
+                <span class="stat-label">{{ c.reviewCount }} reviews</span>
+              </div>
+            }
             <div class="stat-divider"></div>
             <div class="stat-item">
               <span class="stat-value">{{ c.yearsCoaching }}</span>
@@ -167,7 +177,7 @@ const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
           @if (currentUser()?.role === 'Player') {
             @if (c.acceptingNewPlayers) {
               <div class="cta">
-                <app-button label="Request a session" variant="dark" (click)="bookingOpen = true" />
+                <app-button label="Request a session" variant="dark" data-testid="request-session" (click)="bookingOpen = true" />
               </div>
               <app-booking-modal
                 [visible]="bookingOpen"
@@ -176,7 +186,7 @@ const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
                 [hourlyRate]="c.hourlyRate"
                 [discountPercent]="discountPercent()"
                 (closed)="bookingOpen = false"
-                (submitted)="bookingOpen = false" />
+                (submitted)="onBooked($event)" />
             } @else {
               <div class="cta">
                 <p class="not-accepting">This coach is not accepting new players right now.</p>
@@ -380,11 +390,14 @@ export class CoachProfileComponent {
   private readonly coachesService = inject(CoachesService);
   private readonly authService = inject(AuthService);
   private readonly progressionService = inject(ProgressionService);
+  private readonly router = inject(Router);
+  private readonly analytics = inject(AnalyticsService);
 
   private readonly id = this.route.snapshot.paramMap.get('id')!;
 
   readonly viewState = toSignal(
     this.coachesService.getCoachById(this.id).pipe(
+      tap(coach => this.analytics.viewItem(coachItem(coach))),
       map(coach => ({ type: 'loaded' as const, coach })),
       catchError(() => of({ type: 'error' as const, coach: null as CoachProfileDto | null })),
       startWith({ type: 'loading' as const, coach: null as CoachProfileDto | null })
@@ -403,6 +416,14 @@ export class CoachProfileComponent {
   );
 
   bookingOpen = false;
+
+  /** Paid coaching sessions continue to checkout; free ones are done once sent. */
+  onBooked(request: SessionRequestDto): void {
+    this.bookingOpen = false;
+    if (request.estimatedPriceMkd) {
+      this.router.navigate(['/checkout', request.id]);
+    }
+  }
 
   specialtyLabel(s: Specialty): string { return SPECIALTY_LABELS[s] ?? s; }
   surfaceLabel(s: Surface): string { return SURFACE_LABELS[s] ?? s; }

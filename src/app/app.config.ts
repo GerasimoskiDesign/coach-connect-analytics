@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { ApplicationConfig, inject, provideAppInitializer, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
@@ -7,6 +7,7 @@ import { jwtInterceptor } from './core/interceptors/jwt.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
 import { mockBackendInterceptor } from './core/mock/mock-backend.interceptor';
 import { environment } from '../environments/environment';
+import { AnalyticsService } from './core/analytics/analytics.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -21,5 +22,7 @@ export const appConfig: ApplicationConfig = {
         ...(environment.useMockBackend ? [mockBackendInterceptor] : []),
       ])
     ),
+    // Start SPA page view tracking and publish the A/B variant before the first navigation ends.
+    provideAppInitializer(() => inject(AnalyticsService).start()),
   ],
 };

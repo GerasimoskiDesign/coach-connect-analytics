@@ -253,8 +253,8 @@
           </div>
         } @else if (recommendations().length > 0) {
           <div class="rec-list">
-            @for (rec of recommendations().slice(0, 3); track rec.userId) {
-              <a class="rec-row rec-row-link" [routerLink]="recRoute(rec)">
+            @for (rec of recommendations().slice(0, REC_DISPLAY_COUNT); track rec.userId) {
+              <a class="rec-row rec-row-link" [routerLink]="recRoute(rec)" (click)="trackRecClick(rec)" [attr.data-testid]="'rec-' + rec.rank">
                 <span class="rec-rank">{{ rec.rank }}</span>
                 <div class="rec-avatar-ph rec-avatar-initials">{{ recInitials(rec) }}</div>
                 <div class="rec-text">

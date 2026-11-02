@@ -17,6 +17,15 @@ import { CoachesService } from './coaches.service';
 import { ProgressionService } from '../progression/progression.service';
 import { CoachProfileDto } from '../../core/models/discovery.models';
 import { CoachingStyle, SkillLevelGroup } from '../../core/models/auth.models';
+import { AnalyticsService } from '../../core/analytics/analytics.service';
+
+// filter_level values sent with the search event. Same labels as coach levels.
+const LEVEL_LABELS: Record<SkillLevelGroup, string> = {
+  Group1To3: 'Beginner',
+  Group4To6: 'Intermediate',
+  Group7To8: 'Advanced',
+  Group9To10: 'Elite',
+};
 
 const PAGE_SIZE = 50;
 
@@ -39,8 +48,19 @@ const CITIES = [
           <p class="subtitle">Browse certified coaches and find your perfect match.</p>
         </div>
 
+        <form class="search" role="search" (submit)="submitSearch($event)">
+          <input
+            type="search"
+            class="search-input"
+            [formControl]="searchControl"
+            placeholder="Search by name, city or specialty"
+            aria-label="Search coaches"
+            data-testid="coach-search-input" />
+          <button type="submit" class="search-btn" data-testid="coach-search-submit">Search</button>
+        </form>
+
         <div class="filters" [formGroup]="filterForm">
-          <select formControlName="skillLevelGroup" class="filter-select">
+          <select formControlName="skillLevelGroup" class="filter-select" data-testid="filter-level">
             <option [ngValue]="null">All skill groups</option>
             <option [ngValue]="'Group1To3'">Beginner (1–3)</option>
             <option [ngValue]="'Group4To6'">Intermediate (4–6)</option>
@@ -61,7 +81,7 @@ const CITIES = [
             <option [ngValue]="'Relaxed'">Relaxed</option>
           </select>
 
-          <select formControlName="city" class="filter-select">
+          <select formControlName="city" class="filter-select" data-testid="filter-city">
             <option [ngValue]="null">All cities</option>
             @for (c of cities; track c) {
               <option [ngValue]="c">{{ c }}</option>
@@ -127,6 +147,40 @@ const CITIES = [
       color: var(--color-text-secondary);
     }
 
+    .search {
+      display: flex;
+      gap: var(--space-2);
+      max-width: 560px;
+    }
+
+    .search-input {
+      flex: 1;
+      height: 40px;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--color-line);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      font-size: var(--text-sm);
+      font-family: var(--font-sans);
+      color: var(--color-text-primary);
+      outline: none;
+
+      &:focus { border-color: var(--color-ink); }
+    }
+
+    .search-btn {
+      height: 40px;
+      padding: 0 var(--space-5);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--color-ink);
+      color: #fff;
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
+      font-family: var(--font-sans);
+      cursor: pointer;
+    }
+
     .filters {
       display: flex;
       align-items: center;
@@ -181,6 +235,7 @@ export class CoachesComponent implements AfterViewInit, OnDestroy {
   private readonly coachesService = inject(CoachesService);
   private readonly progressionService = inject(ProgressionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly analytics = inject(AnalyticsService);
 
   readonly cities = CITIES;
   readonly filterForm = this.fb.group({
@@ -189,6 +244,8 @@ export class CoachesComponent implements AfterViewInit, OnDestroy {
     trainingStyle: [null as CoachingStyle | null],
     city: [null as string | null],
   });
+
+  readonly searchControl = this.fb.nonNullable.control('');
 
   readonly coaches = signal<CoachProfileDto[]>([]);
   readonly loading = signal(true);
@@ -209,6 +266,7 @@ export class CoachesComponent implements AfterViewInit, OnDestroy {
   private currentAcceptingNewPlayers: boolean | null = null;
   private currentTrainingStyle: CoachingStyle | null = null;
   private currentCity: string | null = null;
+  private currentQuery = '';
 
   private readonly scrollListener = (): void => this.maybeLoadMore();
 
@@ -223,6 +281,18 @@ export class CoachesComponent implements AfterViewInit, OnDestroy {
       this.currentCity = v.city ?? null;
       this.resetAndLoad();
     });
+  }
+
+  /** Explicit search (Enter or the button). Filter changes alone do not send a search event. */
+  submitSearch(event: Event): void {
+    event.preventDefault();
+    this.currentQuery = this.searchControl.value.trim();
+    this.analytics.search({
+      search_term: this.currentQuery,
+      filter_level: this.currentSkillLevelGroup ? LEVEL_LABELS[this.currentSkillLevelGroup] : 'all',
+      filter_city: this.currentCity ?? 'all',
+    });
+    this.resetAndLoad();
   }
 
   ngAfterViewInit(): void {
@@ -259,6 +329,7 @@ export class CoachesComponent implements AfterViewInit, OnDestroy {
       acceptingNewPlayers: this.currentAcceptingNewPlayers ?? undefined,
       trainingStyle: this.currentTrainingStyle ?? undefined,
       city: this.currentCity ?? undefined,
+      q: this.currentQuery || undefined,
       page: this.page,
       pageSize: PAGE_SIZE,
     }).pipe(
