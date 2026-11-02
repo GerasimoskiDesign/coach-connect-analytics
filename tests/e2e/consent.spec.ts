@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { Entry, acceptConsent, dataLayer, signUp, stubGoogle, waitForEvent } from './helpers';
+import type { Entry } from './helpers';
+import { acceptConsent, dataLayer, signUp, stubGoogle, waitForEvent } from './helpers';
 
 const SIGNALS = ['ad_storage', 'ad_user_data', 'ad_personalization', 'analytics_storage'];
 
