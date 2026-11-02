@@ -22,10 +22,10 @@ export const DLV_KEYS = [
   'page_path', 'page_title', 'page_location',
 ];
 
-/** Parameters sent by the non-ecommerce event tag. */
-const EVENT_PARAMS = DLV_KEYS.filter(k => k !== 'rec_variant');
-/** Parameters sent by the ecommerce tag, on top of the ecommerce object. */
+/** Parameters sent by the ecommerce tag, on top of the ecommerce object (select_item). */
 const ECOMMERCE_EXTRA_PARAMS = ['rec_algorithm', 'rec_score'];
+/** Parameters sent by the non-ecommerce event tag. rec_variant is a user property, not a parameter. */
+const EVENT_PARAMS = DLV_KEYS.filter(k => k !== 'rec_variant' && !ECOMMERCE_EXTRA_PARAMS.includes(k));
 
 const ACCOUNT = '0';
 const CONTAINER = '0';
