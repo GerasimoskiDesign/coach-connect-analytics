@@ -1,0 +1,505 @@
+@if (currentUser(); as user) {
+  <div class="dashboard">
+    <app-nav />
+
+    @if (!user.isOnboarded) {
+      <a routerLink="/onboarding" class="onboarding-banner">
+        <span class="banner-text">Complete your profile to start finding matches.</span>
+        <span class="banner-arrow">→</span>
+      </a>
+    }
+
+    @if (showEmailVerificationBanner()) {
+      <div class="email-banner">
+        <span class="banner-text">Please verify your email address. Check your inbox for the confirmation link.</span>
+        <button type="button" class="email-banner-close" (click)="showEmailBanner.set(false)" aria-label="Dismiss">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    }
+
+    <main class="page">
+
+      <!-- ── Greeting ──────────────────────────────────────────────────── -->
+      <div class="greeting reveal r1">
+        <div>
+          <h1>{{ greeting() }}, {{ user.firstName }}.</h1>
+          <div class="greeting-meta">
+            <span>{{ todayLabel() }}</span>
+            @if (user.city) {
+              <span class="sep"></span>
+              <span class="location-dot">Based in {{ user.city }}</span>
+            }
+          </div>
+        </div>
+        <div class="greeting-actions">
+          @if (user.role === 'Player') {
+            <a routerLink="/players" class="btn btn-secondary">Find player</a>
+            <a routerLink="/coaches" class="btn btn-primary">Book a session</a>
+          } @else {
+            <a routerLink="/players" class="btn btn-secondary">Browse players</a>
+            <a routerLink="/requests" class="btn btn-primary">View requests</a>
+          }
+        </div>
+      </div>
+
+      @if (user.role === 'Player' && showDriftNudge()) {
+        <div class="drift-nudge reveal r2">
+          <span class="drift-nudge-text">Is your skill level still accurate? Keeping it updated helps us find better matches.</span>
+          <div class="drift-nudge-actions">
+            <a routerLink="/profile" class="drift-nudge-cta">Update profile →</a>
+            <button type="button" class="drift-nudge-close" (click)="dismissDriftNudge()" aria-label="Dismiss">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- ── Hero grid ─────────────────────────────────────────────────── -->
+      <div class="hero-grid">
+
+        <!-- Next session card -->
+        <div class="card next-session reveal r2" (click)="showUpcomingModal = true">
+          @if (nextSession(); as session) {
+          <div class="ns-top">
+            <span class="ns-eyebrow">
+              <span class="pulse"></span>
+              Upcoming session
+            </span>
+          </div>
+            <div class="ns-filled">
+              <div class="ns-who">
+                <span class="ns-name">{{ session.counterpartFirstName }} {{ session.counterpartLastName }}</span>
+                <span class="ns-badge">{{ session.counterpartRole }}</span>
+              </div>
+              <div class="ns-when">
+                <span>{{ formatDate(session.proposedDateTime) }}</span>
+                <span class="sep"></span>
+                <span class="ns-time-val">{{ formatTime(session.proposedDateTime) }}</span>
+              </div>
+              <div class="ns-venue">
+                <span>{{ session.tennisClubName }}</span>
+                <span class="sep"></span>
+                <span>{{ session.durationMinutes }} min</span>
+                @if (session.estimatedPriceMkd) {
+                  <span class="sep"></span>
+                  <span class="ns-price">{{ formatPrice(session.estimatedPriceMkd) }}</span>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="ns-empty">
+              <p class="ns-empty-title">No upcoming sessions</p>
+              <p class="ns-empty-sub">
+                @if (user.role === 'Player') {
+                  Book a session with a coach or find a practice partner.
+                } @else {
+                  Send a session request to one of your players to get started.
+                }
+              </p>
+              @if (user.role === 'Player') {
+                <a routerLink="/coaches" class="btn btn-primary btn-sm" (click)="$event.stopPropagation()">Find a coach</a>
+              } @else {
+                <a routerLink="/players" class="btn btn-primary btn-sm" (click)="$event.stopPropagation()">Browse players</a>
+              }
+            </div>
+          }
+          <div class="ns-hint">View sessions →</div>
+        </div>
+
+        <!-- Progression card (Player) / Session overview (Coach) -->
+        @if (user.role === 'Player') {
+          <div class="card progression reveal r3">
+            <div class="prog-head">
+              <div class="prog-label-group">
+                <span class="prog-label">Progression</span>
+                <div class="prog-info-wrap">
+                  <button type="button" class="prog-info-btn"
+                          (click)="progressionInfoOpen.set(!progressionInfoOpen())"
+                          aria-label="Progression info">!</button>
+                </div>
+              </div>
+              @if (progression().length > 1) {
+                <div class="prog-nav">
+                  <button type="button" class="week-nav-btn"
+                          [disabled]="selectedProgressionIndex() === 0"
+                          (click)="prevCoach()" aria-label="Previous coach">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M8.5 2.5L4 7l4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <span class="prog-nav-pos">{{ selectedProgressionIndex() + 1 }} / {{ progression().length }}</span>
+                  <button type="button" class="week-nav-btn"
+                          [disabled]="selectedProgressionIndex() === progression().length - 1"
+                          (click)="nextCoach()" aria-label="Next coach">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M5.5 2.5L10 7l-4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              }
+            </div>
+            @if (selectedProgression(); as top) {
+              <div class="prog-card-body">
+                <div class="cp-ring-wrap">
+                  <svg viewBox="0 0 60 60">
+                    <circle class="cp-bg" cx="30" cy="30" r="25" transform="rotate(-90 30 30)" />
+                    <circle class="cp-fg" cx="30" cy="30" r="25"
+                            transform="rotate(-90 30 30)"
+                            [attr.stroke-dasharray]="CIRC_SM"
+                            [attr.stroke-dashoffset]="ringOffset(top)" />
+                  </svg>
+                  <div class="cp-av">{{ progressPercent(top) }}%</div>
+                </div>
+                <div class="prog-coach-info">
+                  <p class="prog-name">{{ top.counterpartFirstName }} {{ top.counterpartLastName }}</p>
+                  <p class="prog-hours">
+                    @if (top.currentLevel === 3) {
+                      300h · Max level
+                    } @else {
+                      {{ formatHours(top.totalHours) }} / {{ pillTargetHours(top) }}h
+                    }
+                  </p>
+                  @if (top.currentLevel === 0) {
+                    <span class="prog-badge prog-badge-muted">No discount yet</span>
+                  } @else {
+                    <span class="prog-badge">• {{ tierName(top.currentLevel) }} · -{{ top.discountPercent }}% on every session</span>
+                  }
+                </div>
+              </div>
+              @if (top.currentLevel < 3) {
+                <div class="prog-next-row">
+                  <span class="prog-next-label">Next tier · {{ pillNextTierName(top) }} (-{{ nextTierDiscount(top) }}%)</span>
+                  <span class="prog-hours-to-go">{{ hoursToGo(top) }}h to go</span>
+                </div>
+              }
+            } @else {
+              <div class="prog-empty">
+                <p class="prog-empty-title">No coach yet</p>
+                <p class="prog-empty-sub">Book sessions with a coach to start building your loyalty tier.</p>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="card session-overview reveal r3">
+            <div class="prog-head">
+              <span class="prog-label">Session overview</span>
+            </div>
+            @if (progression().length > 0) {
+              <div class="overview-stats">
+                <div class="ov-stat">
+                  <div class="ov-val">{{ progression().length }}</div>
+                  <div class="ov-lab">Players</div>
+                </div>
+                <div class="ov-stat">
+                  <div class="ov-val">{{ formatHours(totalCoachingHours()) }}</div>
+                  <div class="ov-lab">Hours coached</div>
+                </div>
+                <div class="ov-stat">
+                  <div class="ov-val">{{ sessionsCompleted() }}</div>
+                  <div class="ov-lab">Sessions</div>
+                </div>
+              </div>
+            } @else {
+              <div class="overview-empty">
+                <p class="ns-empty-title">No sessions yet</p>
+                <p class="ns-empty-sub">
+                  Accept requests from players to see your session overview here.
+                </p>
+              </div>
+            }
+          </div>
+        }
+
+      </div>
+
+      <!-- ── Recommendations ──────────────────────────────────────────────── -->
+      <div class="rec-rect reveal r3">
+        <div class="rec-head">
+          <span class="rec-eyebrow">Coach Connect+ recommends:</span>
+          <div class="rec-toggle">
+            <button
+              type="button"
+              class="rec-toggle-btn"
+              [class.active]="recommendationType() === 'coaches'"
+              (click)="recommendationType.set('coaches')">
+              ← Coaches
+            </button>
+            <button
+              type="button"
+              class="rec-toggle-btn"
+              [class.active]="recommendationType() === 'players'"
+              (click)="recommendationType.set('players')">
+              Players →
+            </button>
+          </div>
+        </div>
+        @if (recommendationsLoading()) {
+          <div class="rec-list">
+            @for (i of [1,2,3,4,5]; track i) {
+              <div class="rec-row">
+                <span class="rec-rank">{{ i }}</span>
+                <div class="rec-avatar-ph"></div>
+                <div class="rec-text">
+                  <div class="rec-ph-line rec-ph-name"></div>
+                  <div class="rec-ph-line rec-ph-detail"></div>
+                </div>
+              </div>
+            }
+          </div>
+        } @else if (recommendations().length > 0) {
+          <div class="rec-list">
+            @for (rec of recommendations().slice(0, 3); track rec.userId) {
+              <a class="rec-row rec-row-link" [routerLink]="recRoute(rec)">
+                <span class="rec-rank">{{ rec.rank }}</span>
+                <div class="rec-avatar-ph rec-avatar-initials">{{ recInitials(rec) }}</div>
+                <div class="rec-text">
+                  <span class="rec-name">{{ rec.firstName }} {{ rec.lastName }}</span>
+                  <span class="rec-meta">{{ recMeta(rec) }}</span>
+                  @if (recReasons(rec).length > 0) {
+                    <ul class="rec-reasons">
+                      @for (reason of recReasons(rec); track reason) {
+                        <li>{{ reason }}</li>
+                      }
+                    </ul>
+                  }
+                </div>
+                <span class="rec-cta">
+                  {{ recommendationType() === 'coaches' ? 'View coach' : 'View player' }} →
+                </span>
+              </a>
+            }
+          </div>
+        } @else {
+          <p class="rec-hint">No recommendations yet — complete your profile and book a few sessions to get started.</p>
+        }
+      </div>
+
+      <!-- ── Two-col: This week + Coaches/Players ───────────────────────── -->
+      <div class="two-col">
+
+        <!-- This week -->
+        <div class="card no-pad reveal r4">
+          <div class="card-head-row">
+            <button type="button" class="week-nav-btn" (click)="prevWeek()" aria-label="Previous week">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M8.5 2.5L4 7l4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="card-h2">{{ weekLabel() }}</h2>
+            <button type="button" class="week-nav-btn" (click)="nextWeek()" aria-label="Next week">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M5.5 2.5L10 7l-4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="week-strip">
+            @for (day of weekDays(); track day.label) {
+              <button
+                type="button"
+                class="ws-day"
+                [class.today]="day.isToday"
+                [class.selected]="selectedDayIndex() === day.dayIndex"
+                (click)="selectedDayIndex.set(day.dayIndex)">
+                <div class="ws-dow">{{ day.label }}</div>
+                <div class="ws-num">{{ day.num }}</div>
+                <div class="ws-dots">
+                  @if (sessionDayNums().has(day.dayIndex)) {
+                    <i></i>
+                  } @else {
+                    <i style="visibility:hidden"></i>
+                  }
+                </div>
+              </button>
+            }
+          </div>
+
+          @if (selectedDaySessions().length > 0) {
+            <ul class="session-list">
+              @for (session of selectedDaySessions(); track session.id) {
+                <li class="session-row">
+                  <div class="sr-when">
+                    <span class="sr-day">{{ formatDayAbbr(session.proposedDateTime) }}</span>
+                    <span class="sr-time">{{ formatTime(session.proposedDateTime) }}</span>
+                  </div>
+                  <div class="sr-info">
+                    <span class="sr-name">{{ session.counterpartFirstName }} {{ session.counterpartLastName }}</span>
+                    <span class="sr-meta">{{ session.tennisClubName }} · {{ session.durationMinutes }} min</span>
+                  </div>
+                  @if (session.estimatedPriceMkd) {
+                    <span class="sr-price">{{ formatPrice(session.estimatedPriceMkd) }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="list-empty">
+              <p class="empty-label">No sessions on this day</p>
+              <p class="empty-sub">Accepted session requests will appear here.</p>
+            </div>
+          }
+        </div>
+
+        <!-- Your coaches / Your players -->
+        <div class="card no-pad reveal r5">
+          <div class="card-head-row">
+            <h2 class="card-h2">
+              @if (user.role === 'Player') { Your coaches } @else { Your players }
+            </h2>
+          </div>
+
+          @if (progression().length > 0) {
+            <ul class="partner-list">
+              @for (rel of progression(); track rel.relationshipId) {
+                <li class="partner-row" (click)="selectedCounterpartId.set(rel.counterpartUserId)">
+                  <div class="partner-info">
+                    <span class="partner-name">{{ rel.counterpartFirstName }} {{ rel.counterpartLastName }}</span>
+                    <div class="partner-meta">
+                      <span class="partner-level">Lv {{ rel.currentLevel }}</span>
+                      @if (rel.discountPercent > 0) {
+                        <span class="partner-discount">{{ rel.discountPercent }}% off</span>
+                      }
+                      <span class="partner-hours">{{ formatHours(rel.totalHours) }}</span>
+                    </div>
+                  </div>
+                  <div class="partner-bar-wrap">
+                    @if (rel.currentLevel >= 3) {
+                      <div class="partner-bar partner-bar-full"></div>
+                    } @else {
+                      <div class="partner-bar" [style.width.%]="progressPercent(rel)"></div>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="coaches-empty">
+              @if (user.role === 'Player') {
+                <p class="empty-label">No coaches yet</p>
+                <p class="empty-sub">Your coaches and loyalty progression will appear here.</p>
+              } @else {
+                <p class="empty-label">No players yet</p>
+                <p class="empty-sub">Players you train with will appear here.</p>
+              }
+            </div>
+          }
+
+        </div>
+
+      </div>
+
+      <div class="quiet-foot">Train. Connect. Compete.</div>
+
+    </main>
+  </div>
+
+  @if (progressionInfoOpen()) {
+    <div class="loyalty-backdrop" (click)="progressionInfoOpen.set(false)"></div>
+    <div class="loyalty-modal">
+      <div class="loyalty-modal-head">
+        <span class="loyalty-modal-title">Loyalty tiers</span>
+        <button type="button" class="loyalty-close" (click)="progressionInfoOpen.set(false)" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      @if (selectedProgression(); as top) {
+        <!-- Tier head -->
+        <div class="ltm-head">
+          <span class="ltm-with">with</span>
+          <span class="ltm-coachname">{{ top.counterpartFirstName }} {{ top.counterpartLastName }}</span>
+          <span class="prog-tier-badge">
+            <span class="tier-gem"></span>
+            {{ tierName(top.currentLevel) }} tier
+          </span>
+        </div>
+
+        <!-- Progress pill -->
+        <div class="pill">
+          <div class="pill-fill" [style.width.%]="pillFillPercent(top)"></div>
+          <span class="pill-cur">{{ formatHours(top.totalHours) }}</span>
+          @if (top.currentLevel < 3) {
+            <span class="pill-target">{{ pillTargetHours(top) }}<span class="pill-unit">h</span></span>
+          }
+        </div>
+        <div class="pill-caption">
+          <span>Hours logged</span>
+          @if (top.currentLevel < 3) {
+            <span>{{ pillNextTierName(top) }} unlocks</span>
+          } @else {
+            <span>Gold achieved</span>
+          }
+        </div>
+
+        <!-- Tier progression -->
+        <h2 class="ltm-prog-title">Tier progression</h2>
+        <div class="lad-wrap">
+          <div class="ladder">
+            <div class="ladder-track"></div>
+            <div class="ladder-fill" [style.width.%]="ladderFillWidth(top)"></div>
+
+            <!-- Current position -->
+            <div class="lad-pin lad-current" [style.left.%]="ladderCurrentLeft(top)">
+              <span class="lad-now">You · {{ formatHours(top.totalHours) }}</span>
+              <span class="lad-stem"></span>
+              <span class="lad-dot"></span>
+            </div>
+
+            <!-- Bronze: 100h -->
+            <div class="lad-pin" style="left: 30.67%">
+              <span class="lad-hours">100h</span>
+              <span class="lad-stem"></span>
+              <span class="lad-dot" [class.lad-dot-reached]="top.currentLevel >= 1"></span>
+              <span class="lad-label">
+                <div class="lad-tier-name lad-bronze">Bronze</div>
+                <div class="lad-tier-disc"><b>−10%</b></div>
+              </span>
+            </div>
+
+            <!-- Silver: 175h -->
+            <div class="lad-pin" style="left: 53.67%">
+              <span class="lad-hours">175h</span>
+              <span class="lad-stem"></span>
+              <span class="lad-dot" [class.lad-dot-reached]="top.currentLevel >= 2"></span>
+              <span class="lad-label">
+                <div class="lad-tier-name lad-silver">Silver</div>
+                <div class="lad-tier-disc"><b>−20%</b></div>
+              </span>
+            </div>
+
+            <!-- Gold: 300h -->
+            <div class="lad-pin lad-edge-right" style="left: 92%">
+              <span class="lad-hours">300h</span>
+              <span class="lad-stem"></span>
+              <span class="lad-dot" [class.lad-dot-reached]="top.currentLevel >= 3"></span>
+              <span class="lad-label">
+                <div class="lad-tier-name lad-gold">Gold</div>
+                <div class="lad-tier-disc"><b>−30%</b></div>
+              </span>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <p class="ltm-empty">Book sessions with a coach to start tracking your loyalty tier.</p>
+      }
+    </div>
+  }
+
+  <app-upcoming-sessions-modal
+    [visible]="showUpcomingModal"
+    [sessions]="upcomingSessions()"
+    (closed)="showUpcomingModal = false" />
+
+  <app-partner-history-modal
+    [visible]="selectedCounterpartId() !== null"
+    [sessions]="counterpartSessions()"
+    [counterpartName]="selectedCounterpartName()"
+    [totalHours]="counterpartTotalHours()"
+    (closed)="selectedCounterpartId.set(null)" />
+}

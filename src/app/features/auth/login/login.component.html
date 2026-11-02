@@ -1,0 +1,34 @@
+<app-auth-layout title="Sign in">
+  @if (passwordResetSuccess) {
+    <div class="success-banner">Your password has been updated. Sign in to continue.</div>
+  }
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="fields">
+      <app-form-field
+        label="Email"
+        type="email"
+        [control]="email"
+        autocomplete="email"
+        [errorMessages]="{ required: 'Email is required.', email: 'Enter a valid email address.' }"
+      />
+      <app-form-field
+        label="Password"
+        type="password"
+        [control]="password"
+        autocomplete="current-password"
+        [errorMessages]="{ required: 'Password is required.' }"
+      />
+    </div>
+    @if (serverError) {
+      <p class="server-error">{{ serverError }}</p>
+    }
+    <app-button
+      label="Sign in"
+      type="submit"
+      [loading]="loading"
+      loadingLabel="Signing in…"
+    />
+    <p class="forgot-link"><a routerLink="/forgot-password">Forgot your password?</a></p>
+  </form>
+  <p class="footer-link">Don't have an account? <a routerLink="/register">Create one</a></p>
+</app-auth-layout>
