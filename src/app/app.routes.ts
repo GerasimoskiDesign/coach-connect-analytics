@@ -9,9 +9,13 @@ export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: () => {
+    // Keep the query string: GTM Preview adds gtm_debug to the URL and reads it
+    // when gtm.js runs, which can be after this redirect.
+    redirectTo: ({ queryParams }) => {
       const auth = inject(AuthService);
-      return auth.isAuthenticated() ? '/dashboard' : '/login';
+      const target = auth.isAuthenticated() ? '/dashboard' : '/login';
+      const query = new URLSearchParams(queryParams).toString();
+      return query ? `${target}?${query}` : target;
     },
   },
   {
