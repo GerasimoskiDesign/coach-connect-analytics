@@ -22,22 +22,24 @@ All events are pushed to `window.dataLayer` by one Angular service (`src/app/cor
 | Event | Fires when | Key event | Feeds goal |
 |---|---|---|---|
 | `page_view_spa` (sent to GA4 as `page_view`) | Every Angular route change, including the first load | no | all (denominators) |
-| `set_user_properties` | App start, once per browser session; carries the `rec_variant` user property | no | G4 (A/B split) |
-| `sign_up` | Registration succeeded (`method` = `email`) | yes | G1 |
-| `login` | Login succeeded (`method` = `email`) | no | G1 (returning players) |
+| `set_user_properties` | App start (once per browser session) and whenever sign-up, login or the player level change the user properties; carries `rec_variant` and, signed in, the account keys (`user_id`, `user_role`, `signup_date`, `player_level`) | no | G4 (A/B split), segments |
+| `sign_up` | Registration form succeeded (`method` = `email`) or the demo created the account at the first login (`method` = `auto_login`); `user_role` | yes | G1 |
+| `login` | Login with an existing account (`method` = `email`, `user_role`) | no | G1 (returning users) |
 | `search` | Coach search submitted with Enter or the Search button (`search_term`, `filter_level`, `filter_city`) | no | G4 |
-| `view_item_list` | The 5 recommended coaches render on the dashboard (`item_list_id` = `recommended_coaches`) | no | G4 |
-| `select_item` | Click on a recommended coach (`index`, `rec_algorithm`, `rec_score`) | no | G4 |
+| `view_item_list` | The 5 recommended coaches (`rec_coaches`) or players (`rec_players`) render on the dashboard, with `rec_algorithm` | no | G4 |
+| `select_item` | Click on a recommended coach or player (`index`, `rec_algorithm`, `rec_score`) | no | G4 |
 | `view_item` | A coach profile loads (`value` = hourly rate in EUR) | no | G2, G4 |
-| `book_session` | Session request sent from the booking modal (`coach_id`, `session_type`, `value`, `currency`) | yes | G2 |
-| `purchase` | Demo payment confirmed on the checkout page (`transaction_id`, `value`, `currency`, `items`) | yes | G3 |
+| `book_session` | Session request sent (`session_request_id`, `interaction_type`, `requester_role`, `receiver_id`, `receiver_role`, `coach_id`, `session_type`, `player_level`, `duration_minutes`, `value`, `currency`, and `rec_list_id` / `rec_algorithm` / `rec_index` when it came from a recommendation) | yes | G2, G4 |
+| `session_request_responded` | The receiver accepted, declined or rescheduled a request (`session_request_id`, `response`, `responder_role`, `interaction_type`) | no | G2 |
+| `purchase` | Demo payment confirmed on the checkout page (`transaction_id`, `value`, `currency`, `items`, `player_level`; items carry the recommendation list, position and algorithm) | yes | G3, G4 |
 
 Notes on the data:
 
 - `index` in `items` is the 1-based rank shown in the UI, so position 1 is the top card.
 - `item_variant` on items holds the coach's level. It is not the A/B variant; the A/B variant is the `rec_variant` user property.
-- `session_type` is `coaching` for a paid coach session and `practice` for a free player-to-player session (then `coach_id` is `none` and `value` is 0).
-- `book_session.value` is the price after any loyalty discount. GA4 reports it as key event value, not as revenue. Revenue comes only from `purchase`, so the two never double count.
+- `session_type` is `coaching` whenever a coach is on either side (also when the coach sent the request; then `coach_id` is the coach's own ID and `value` is the coach's rate) and `practice` for a free player-to-player session (then `coach_id` is `none` and `value` is 0).
+- `player_level` on an event is the level band of the player in that session (for a coach's request, the receiving player). The `player_level` user property is the signed-in player's own band.
+- `book_session.value` is the price the backend stored for the request (after any loyalty discount). GA4 reports it as key event value, not as revenue. Revenue comes only from `purchase`, so the two never double count.
 - `purchase` is deduplicated per `transaction_id`, so reloading the confirmation screen does not report revenue twice.
 - Currency is always `EUR`.
 
@@ -49,8 +51,8 @@ GA4 terms used below: **Total users** and **Sessions** are built-in metrics; "us
 |---|---|---|---|---|---|
 | Sign-up rate | Share of users who create an account | Total users with `sign_up` / Total users | `sign_up`, `page_view` | Event name; Total users; User key event rate (with `sign_up` selected as the key event) | Reports > Engagement > Key events (`sign_up` row, Total users) against Reports > Acquisition > User acquisition (Total users). Free-form exploration for any breakdown. |
 | Booking conversion rate | Share of users who send at least one session request | Total users with `book_session` / Total users | `book_session`, `page_view` | Event name; Total users; User key event rate (key event `book_session`); breakdown `session_type` | Reports > Engagement > Key events; Free-form exploration with `session_type` and `rec_variant` as rows. Session-level alternative: Session key event rate with `book_session` selected, in Reports > Acquisition > Traffic acquisition. |
-| Recommendation CTR by position | Of the recommended coaches shown in a slot, the share that were clicked | Items clicked in list / Items viewed in list, filtered to Item list ID = `recommended_coaches`, split by Item list position. Item impressions come from `view_item_list` items, clicks from `select_item` items. | `view_item_list`, `select_item` | Item list ID; Item list position (from `index`); Items viewed in list; Items clicked in list; Item list click-through rate | Free-form exploration, rows = Item list position (see [GA4 setup, section 9](GA4_SETUP.md#9-free-form-exploration-recommendation-ctr-by-position)) |
-| Recommendation CTR by variant | The same click-through rate, compared between the two ranking algorithms | Items clicked in list / Items viewed in list, filtered to Item list ID = `recommended_coaches`, split by `rec_variant`. Simpler list-level check: Event count of `select_item` / Event count of `view_item_list`, per `rec_variant`. | `view_item_list`, `select_item`, `set_user_properties` | User-scoped custom dimension `rec_variant`; event-scoped `rec_algorithm` on `select_item`; same item metrics as above | Free-form exploration with `rec_variant` as a column, or two user segments (`rec_variant` = `content_based` / `popularity`) compared side by side |
+| Recommendation CTR by position | Of the recommended coaches shown in a slot, the share that were clicked | Items clicked in list / Items viewed in list, filtered to Item list ID = `rec_coaches`, split by Item list position. Item impressions come from `view_item_list` items, clicks from `select_item` items. | `view_item_list`, `select_item` | Item list ID; Item list position (from `index`); Items viewed in list; Items clicked in list; Item list click-through rate | Free-form exploration, rows = Item list position (see [GA4 setup, section 9](GA4_SETUP.md#9-free-form-exploration-recommendation-ctr-by-position)) |
+| Recommendation CTR by variant | The same click-through rate, compared between the two ranking algorithms | Items clicked in list / Items viewed in list, filtered to Item list ID = `rec_coaches`, split by `rec_variant`. Simpler list-level check: Event count of `select_item` / Event count of `view_item_list`, per `rec_variant`. | `view_item_list`, `select_item`, `set_user_properties` | User-scoped custom dimension `rec_variant`; event-scoped `rec_algorithm` on `select_item`; same item metrics as above | Free-form exploration with `rec_variant` as a column, or two user segments (`rec_variant` = `content_based` / `popularity`) compared side by side |
 | Revenue per user | Purchase revenue earned per user | Purchase revenue / Total users | `purchase` | Purchase revenue; Total users; GA4 also offers built-in per-user revenue metrics (search the metric picker for "revenue per") which divide by Active users, so they differ slightly | Reports > Monetization > Overview; Free-form exploration with `rec_variant` rows for the A/B comparison |
 | Search-to-booking rate | Of the users who search, the share who later send a session request | Total users who completed `search` then `book_session` / Total users with `search` | `search`, `book_session` | Event name; Total users; Search term; funnel completion rate | Funnel exploration with two steps, `search` then `book_session` (closed funnel). Search term dimension in a Free-form exploration shows what players look for. |
 
@@ -77,13 +79,13 @@ Supporting views that are not KPIs but help explain them:
 |---|---|
 | Hypothesis | Ranking coaches by fit with the player's own profile (`content_based`: skill level group, goals matched to coach specialties, surface, city, coaching style) gets a higher recommendation click-through rate than ranking by popularity (`popularity`: smoothed rating and review volume, the same for every player), and does not reduce bookings. |
 | Variants | `content_based` and `popularity`, stored in the `rec_variant` user property. |
-| Unit | User. Assignment happens on the first visit and is persisted in `localStorage` key `cc_rec_variant`, so in practice the unit is one browser on one device (no User-ID is sent). |
+| Unit | User, approximated by browser. Assignment happens on the first visit and is persisted in `localStorage` key `cc_rec_variant`, so the unit is one browser on one device. `user_id` is sent while signed in, but the assignment does not follow the account: the same account on two browsers can see both arms. |
 | Split | 50/50, random on first visit. |
-| QA override | `?rec_variant=popularity` (or `content_based`) in the URL forces a variant and persists it like a normal assignment. Exclude this traffic from the analysis with an internal traffic filter. |
-| Primary metric | Recommendation CTR: Items clicked in list / Items viewed in list for Item list ID = `recommended_coaches`, per `rec_variant`. |
+| QA override | `?rec_variant=popularity` (or `content_based`) in the URL forces a variant and persists it like a normal assignment. In a real product, exclude this traffic with an internal traffic filter. The traffic simulation (`simulation/`) uses the same parameter to keep the arms balanced; in this demo property that synthetic traffic is the data set, so it is not excluded. |
+| Primary metric | Recommendation CTR: Items clicked in list / Items viewed in list for Item list ID = `rec_coaches`, per `rec_variant`. |
 | Secondary metrics | Booking conversion rate and revenue per user, per `rec_variant`. |
 | Guardrails | (1) Sample ratio: Total users per variant should stay close to 50/50; a clear imbalance points to an assignment or tracking problem, and the test should not be read until it is fixed. (2) Booking conversion rate must not drop in the winning variant: more clicks on popular coaches that never get booked is not a win. |
-| How to read it in GA4 | Free-form exploration: rows = Item list position, columns = `rec_variant`, values = Items viewed in list, Items clicked in list, Item list click-through rate, filter Item list ID = `recommended_coaches`. Then the recommendation funnel broken down by `rec_variant`, and Purchase revenue / Total users per `rec_variant`. If GA4 refuses to combine the user-scoped `rec_variant` with item-scoped metrics, compare two user segments (`rec_variant` exactly matches each value) instead. |
+| How to read it in GA4 | Free-form exploration: rows = Item list position, columns = `rec_variant`, values = Items viewed in list, Items clicked in list, Item list click-through rate, filter Item list ID = `rec_coaches`. Then the recommendation funnel broken down by `rec_variant`, and Purchase revenue / Total users per `rec_variant`. If GA4 refuses to combine the user-scoped `rec_variant` with item-scoped metrics, compare two user segments (`rec_variant` exactly matches each value) instead. |
 
 **Statistical significance.** GA4 shows the numbers per variant but does not compute significance or confidence intervals. To call a winner:
 

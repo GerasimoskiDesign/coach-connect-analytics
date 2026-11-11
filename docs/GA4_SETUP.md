@@ -56,14 +56,44 @@ Key event names are case sensitive and must match the tracking plan exactly. Key
 
 Admin > **Data display** > **Custom definitions**.
 
-**Custom dimensions** tab > **Create custom dimension**, once per row:
+**Custom dimensions** tab > **Create custom dimension**, once per row. The dimension name is free text; the parameter or user property name must match exactly.
 
-| Dimension name | Scope | Description | Event parameter / User property |
+Event-scoped (event parameter):
+
+| Dimension name | Event parameter | Sent on | Values |
 |---|---|---|---|
-| `rec_algorithm` | Event | Ranking algorithm behind a clicked recommendation (`select_item`) | Event parameter: `rec_algorithm` |
-| `session_type` | Event | `coaching` (paid coach session) or `practice` (free player-to-player) on `book_session` | Event parameter: `session_type` |
-| `search_term` | Event | Text submitted in the coach search on `search` | Event parameter: `search_term` |
-| `rec_variant` | User | A/B variant of the recommendation ranking: `content_based` or `popularity` | User property: `rec_variant` |
+| `rec_algorithm` | `rec_algorithm` | `view_item_list`, `select_item`, `book_session` | `content_based`, `popularity` (coach lists, the A/B arm) or `skill_match` (player list); empty on a booking that did not come from a recommendation |
+| `rec_list_id` | `rec_list_id` | `book_session` | `rec_coaches`, `rec_players` or empty |
+| `rec_index` | `rec_index` | `book_session` | 1 to 5, the position clicked, or empty |
+| `session_type` | `session_type` | `book_session` | `coaching` (a coach on either side, paid) or `practice` (player to player, free) |
+| `interaction_type` | `interaction_type` | `book_session`, `session_request_responded` | `player_coach`, `coach_player`, `player_player` |
+| `requester_role` | `requester_role` | `book_session` | `player`, `coach` |
+| `receiver_role` | `receiver_role` | `book_session` | `player`, `coach` |
+| `coach_id` | `coach_id` | `book_session` | Coach user ID, or `none` for player to player |
+| `Player level (event)` | `player_level` | `book_session`, `purchase` | `amateur` (1-4), `intermediate` (5-7), `professional` (8-10): the player in that session |
+| `response` | `response` | `session_request_responded` | `accepted`, `declined`, `rescheduled` |
+| `responder_role` | `responder_role` | `session_request_responded` | `player`, `coach` |
+| `Role (event)` | `user_role` | `sign_up`, `login` | `player`, `coach` |
+| `search_term` | `search_term` | `search` | Free text (emails and phone numbers are redacted in the app) |
+
+User-scoped (user property):
+
+| Dimension name | User property | Values |
+|---|---|---|
+| `rec_variant` | `rec_variant` | `content_based`, `popularity` |
+| `Role (user)` | `user_role` | `player`, `coach` |
+| `Player level (user)` | `player_level` | `amateur`, `intermediate`, `professional` (players only) |
+| `signup_date` | `signup_date` | `YYYY-MM-DD` |
+
+Item-scoped (item parameter):
+
+| Dimension name | Item parameter | Sent on | Values |
+|---|---|---|---|
+| `Item rec algorithm` | `rec_algorithm` | `purchase` items | Algorithm of the recommendation that led to the purchased session; absent when it did not come from a recommendation |
+
+Not worth registering: `session_request_id` and `receiver_id` (one value per request or person, so they would only fill the "(other)" row); they are still visible in DebugView and BigQuery. `method` (`email` or `auto_login` on `sign_up`) can be registered the same way if your property does not show it already.
+
+Note on `player_level` and `user_role`: the same name is used once as an event parameter and once as a user property, on purpose (the event value describes that session, the user property describes the signed-in account). GA4 keeps parameters and user properties apart, so give the two dimensions different names as above. If GA4 refuses one of them, keep the user-scoped one; the event value is still in DebugView and BigQuery.
 
 Note on `search_term`: GA4 also fills its built-in **Search term** dimension from the `search` event. Registering the custom dimension keeps the name consistent with the tracking plan. If GA4 rejects or warns about the name, use the built-in dimension instead.
 
@@ -72,6 +102,9 @@ Note on `search_term`: GA4 also fills its built-in **Search term** dimension fro
 | Metric name | Scope | Description | Event parameter | Unit of measurement |
 |---|---|---|---|---|
 | `rec_score` | Event | Score (0 to 1) of the clicked recommendation on `select_item` | `rec_score` | Standard |
+| `duration_minutes` | Event | Length of the requested session on `book_session` | `duration_minutes` | Standard |
+
+**User-ID.** The container sends `user_id` (the account's UUID, never an email) on every event while signed in. Admin > **Data display** > **Reporting identity**: keep **Blended** (or **Observed**) so reports use it. Users seen on several browsers then count once.
 
 Important:
 
@@ -94,7 +127,7 @@ QA sessions (including browsers forced into a variant with `?rec_variant=`) shou
 1. Define the traffic: Admin > **Data collection and modification** > **Data streams** > web stream > **Configure tag settings** > expand the settings list (**Show more** or **Show all**) > **Define internal traffic** > **Create**. Give the rule a name, keep `traffic_type` = `internal`, and add a rule for your IP address.
 2. Activate the filter: Admin > **Data collection and modification** > **Data filters**. Open the **Internal Traffic** filter, check it in the **Testing** state first, then change the state to **Active**.
 
-Filters apply from the moment they are active and permanently exclude matching data. The **Developer traffic** filter in the same list can exclude debug-mode events (GTM Preview traffic) from reports in the same way.
+Filters apply from the moment they are active and permanently exclude matching data. The traffic simulation in `simulation/` runs from your own machine, so an active rule for your IP address drops all of it: keep the filter in **Testing** while the simulation runs. The **Developer traffic** filter in the same list can exclude debug-mode events (GTM Preview traffic) from reports in the same way.
 
 ## 7. Testing: GTM Preview and GA4 DebugView
 
@@ -108,14 +141,16 @@ What to check, per event:
 |---|---|---|
 | Page load | `Google tag - GA4` fires on Initialization, once per page load. Consent tab: default `denied` for all four signals, then `granted` after accepting. | No automatic `page_view` from the Google tag |
 | `page_view_spa` | `GA4 - Event - Custom and recommended` fires | Arrives as `page_view` with `page_location` and `page_title`, exactly once per route change |
-| `set_user_properties` | `GA4 - Event - Custom and recommended` fires | User property `rec_variant` = `content_based` or `popularity` (shown in the user properties panel) |
-| `sign_up` | Custom and recommended tag fires | `method` = `email`; marked as a key event once section 3 is done |
+| `set_user_properties` | `GA4 - Event - Custom and recommended` fires (trigger `CE - set_user_properties`) | User properties `rec_variant`, and once signed in `user_role`, `signup_date`, `player_level` (players); the event carries `user_id` |
+| `sign_up` | Custom and recommended tag fires | `method` = `email` (form) or `auto_login` (unknown email at login), `user_role`; marked as a key event once section 3 is done |
+| `login` | Custom and recommended tag fires | `method` = `email`, `user_role`; only for existing accounts |
 | `search` | Custom and recommended tag fires | `search_term`, `filter_level`, `filter_city` |
-| `view_item_list` | `GA4 - Event - Ecommerce` fires | 5 items, `item_list_id` = `recommended_coaches`, `index` 1 to 5 |
-| `select_item` | Ecommerce tag fires | One item with the clicked `index`; `rec_algorithm` equals the `rec_variant` value; `rec_score` between 0 and 1 |
+| `view_item_list` | `GA4 - Event - Ecommerce` fires | 5 items, `item_list_id` = `rec_coaches` (or `rec_players` after the Players toggle), `index` 1 to 5, `rec_algorithm` |
+| `select_item` | Ecommerce tag fires | One item with the clicked `index`; `rec_algorithm` equals the `rec_variant` value for coaches (`skill_match` for players); `rec_score` between 0 and 1 |
 | `view_item` | Ecommerce tag fires | `currency` = `EUR`, `value` = coach hourly rate, one item |
-| `book_session` | Custom and recommended tag fires; ecommerce tag does not | `coach_id`, `session_type`, `value`, `currency` = `EUR`; no items attached |
-| `purchase` | Ecommerce tag fires | `transaction_id` (format `CC-` plus 8 hex characters), `value`, `currency` = `EUR`, one item with `quantity` 1 |
+| `book_session` | Custom and recommended tag fires; ecommerce tag does not | `session_request_id`, `interaction_type`, `requester_role`, `receiver_id`, `receiver_role`, `coach_id`, `session_type`, `player_level`, `duration_minutes`, `value`, `currency` = `EUR`, and `rec_list_id` / `rec_algorithm` / `rec_index` when the coach was clicked in a recommendation; no items attached |
+| `session_request_responded` | Custom and recommended tag fires | `session_request_id`, `response`, `responder_role`, `interaction_type` (accept, decline or reschedule on the Requests page) |
+| `purchase` | Ecommerce tag fires | `transaction_id` (format `CC-` plus 8 hex characters), `value`, `currency` = `EUR`, `player_level`, one item with `quantity` 1 and, when it came from a recommendation, `item_list_id`, `index`, `rec_algorithm` |
 
 Also check that no event carries a parameter from an earlier event (for example `search_term` on `book_session`). The app clears event-scoped keys on every push to prevent this.
 
@@ -153,7 +188,7 @@ GA4 stores the `index` of each item as the item-scoped dimension **Item list pos
 3. **Metrics** > **+** and import: Items viewed in list, Items clicked in list, Item list click-through rate. If a label differs, search the picker for "list" or "click" and pick the item list metrics.
 4. **Rows**: Item list position.
 5. **Values**: Items viewed in list, Items clicked in list, Item list click-through rate.
-6. **Filters**: Item list ID exactly matches `recommended_coaches`.
+6. **Filters**: Item list ID exactly matches `rec_coaches`.
 7. **Variant breakdown**: drag `rec_variant` into **Columns**.
 
 If GA4 marks `rec_variant` as incompatible with the item-scoped metrics, remove it from Columns and use segments instead:

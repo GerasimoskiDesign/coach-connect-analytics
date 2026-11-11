@@ -10,7 +10,7 @@ How to build the container in [`gtm/container.json`](../gtm/container.json) by h
 
 Names below match the container file exactly. Keep them identical: the docs, the generator and the tests all use these names.
 
-What gets built: 1 built-in variable, 18 user-defined variables, 2 triggers, 3 tags.
+What gets built: 1 built-in variable, 34 user-defined variables, 11 triggers, 3 tags.
 
 ## 1. Built-in variables
 
@@ -31,30 +31,44 @@ All of these are created under **Variables** > **User-Defined Variables** > **Ne
 | Variable type | Constant |
 | Value | `G-GQKEFPELG9` |
 
-### 2.2 Data Layer Variables (14)
+### 2.2 Data Layer Variables (30)
 
-For each row: Variable type **Data Layer Variable**, **Data Layer Variable Name** as below, **Data Layer Version** = Version 2, **Set Default Value** unchecked.
+Variable type **Data Layer Variable**, Data Layer Version **Version 2**, no default value. Names with a dot (`user.user_id`) read a key inside the `user` object: type them exactly like that.
 
 | Name | Data Layer Variable Name |
 |---|---|
+| `DLV - page_path` | `page_path` |
+| `DLV - page_title` | `page_title` |
+| `DLV - page_location` | `page_location` |
+| `DLV - method` | `method` |
+| `DLV - user_role` | `user_role` |
 | `DLV - search_term` | `search_term` |
 | `DLV - filter_level` | `filter_level` |
 | `DLV - filter_city` | `filter_city` |
 | `DLV - rec_algorithm` | `rec_algorithm` |
 | `DLV - rec_score` | `rec_score` |
+| `DLV - session_request_id` | `session_request_id` |
+| `DLV - interaction_type` | `interaction_type` |
+| `DLV - requester_role` | `requester_role` |
+| `DLV - receiver_id` | `receiver_id` |
+| `DLV - receiver_role` | `receiver_role` |
 | `DLV - coach_id` | `coach_id` |
 | `DLV - session_type` | `session_type` |
+| `DLV - player_level` | `player_level` |
+| `DLV - duration_minutes` | `duration_minutes` |
 | `DLV - value` | `value` |
 | `DLV - currency` | `currency` |
-| `DLV - method` | `method` |
+| `DLV - rec_list_id` | `rec_list_id` |
+| `DLV - rec_index` | `rec_index` |
+| `DLV - response` | `response` |
+| `DLV - responder_role` | `responder_role` |
+| `DLV - user.user_id` | `user.user_id` |
 | `DLV - rec_variant` | `rec_variant` |
-| `DLV - page_path` | `page_path` |
-| `DLV - page_title` | `page_title` |
-| `DLV - page_location` | `page_location` |
+| `DLV - user.user_role` | `user.user_role` |
+| `DLV - user.signup_date` | `user.signup_date` |
+| `DLV - user.player_level` | `user.player_level` |
 
 ### 2.3 Lookup table: GA4 Event Name
-
-Renames `page_view_spa` to `page_view`; every other event name passes through unchanged.
 
 | Field | Value |
 |---|---|
@@ -67,47 +81,52 @@ Renames `page_view_spa` to `page_view`; every other event name passes through un
 
 ### 2.4 Google tag: Configuration Settings
 
-Turns off the automatic `page_view` on load, so page views only come from `page_view_spa`.
+Turns off the automatic page_view and sets the User-ID when a page loads signed in.
 
 | Field | Value |
 |---|---|
 | Name | `GA4 Configuration Settings` |
 | Variable type | Google Tag: Configuration Settings |
-| Configuration Parameter | `send_page_view` |
-| Value | `false` |
+| Row 1 | `send_page_view` = `false` |
+| Row 2 | `user_id` = `{{DLV - user.user_id}}` |
 
 ### 2.5 Google tag: Event Settings
 
-Attaches the A/B variant as a user property to every GA4 hit.
+Shared by the Google tag and both event tags: the User-ID on every event (so it follows login and logout inside the single-page app) and the user properties.
 
 | Field | Value |
 |---|---|
 | Name | `GA4 Event Settings` |
 | Variable type | Google Tag: Event Settings |
-| User Properties > Property Name | `rec_variant` |
-| User Properties > Value | `{{DLV - rec_variant}}` |
-
-Leave the Event Parameters section of this variable empty.
+| Event Parameters | `user_id` = `{{DLV - user.user_id}}` |
+| User Property | `rec_variant` = `{{DLV - rec_variant}}` |
+| User Property | `user_role` = `{{DLV - user.user_role}}` |
+| User Property | `signup_date` = `{{DLV - user.signup_date}}` |
+| User Property | `player_level` = `{{DLV - user.player_level}}` |
 
 ## 3. Triggers
 
-**Triggers** > **New** > **Trigger Configuration** > **Custom Event**.
+One trigger per tracked event (11). **Triggers** > **New** > **Custom Event**, Event name exactly as below, **Use regex matching** unchecked, fires on **All Custom Events**.
 
-| Name | Event name | Use regex matching | This trigger fires on |
-|---|---|---|---|
-| `CE - GA4 events` | `^(page_view_spa\|set_user_properties\|sign_up\|login\|search\|book_session)$` | checked | All Custom Events |
-| `CE - GA4 ecommerce events` | `^(view_item_list\|select_item\|view_item\|purchase)$` | checked | All Custom Events |
+| Name | Event name | Fires tag |
+|---|---|---|
+| `CE - page_view_spa` | `page_view_spa` | `GA4 - Event - Custom and recommended` |
+| `CE - set_user_properties` | `set_user_properties` | `GA4 - Event - Custom and recommended` |
+| `CE - sign_up` | `sign_up` | `GA4 - Event - Custom and recommended` |
+| `CE - login` | `login` | `GA4 - Event - Custom and recommended` |
+| `CE - search` | `search` | `GA4 - Event - Custom and recommended` |
+| `CE - book_session` | `book_session` | `GA4 - Event - Custom and recommended` |
+| `CE - session_request_responded` | `session_request_responded` | `GA4 - Event - Custom and recommended` |
+| `CE - view_item_list` | `view_item_list` | `GA4 - Event - Ecommerce` |
+| `CE - select_item` | `select_item` | `GA4 - Event - Ecommerce` |
+| `CE - view_item` | `view_item` | `GA4 - Event - Ecommerce` |
+| `CE - purchase` | `purchase` | `GA4 - Event - Ecommerce` |
 
-The `\|` in the table is only Markdown escaping. Type a plain `|` in GTM. Copy-ready:
-
-```text
-^(page_view_spa|set_user_properties|sign_up|login|search|book_session)$
-^(view_item_list|select_item|view_item|purchase)$
-```
+Exact names matter: a trigger for `search` must not also match `search_results`. The unit tests check there is exactly one trigger per tracking-plan event, attached to the right tag.
 
 ## 4. Tags
 
-**Tags** > **New** > **Tag Configuration**. For every tag, leave **Advanced Settings** > **Tag firing options** at **Once per event** and **Consent Settings** at **Not set**.
+**Tags** > **New**.
 
 ### 4.1 Google tag - GA4
 
@@ -122,8 +141,6 @@ The `\|` in the table is only Markdown escaping. Type a plain `|` in GTM. Copy-r
 
 ### 4.2 GA4 - Event - Custom and recommended
 
-Sends every non-ecommerce event with plain parameters.
-
 | Field | Value |
 |---|---|
 | Name | `GA4 - Event - Custom and recommended` |
@@ -132,31 +149,39 @@ Sends every non-ecommerce event with plain parameters.
 | Event Name | `{{GA4 Event Name}}` |
 | Event Parameters > Event Settings Variable | `{{GA4 Event Settings}}` |
 | Event Parameters (rows) | see table below |
-| User Properties | Property Name `rec_variant`, Value `{{DLV - rec_variant}}` |
+| User Properties | `rec_variant` = `{{DLV - rec_variant}}`, `user_role` = `{{DLV - user.user_role}}`, `signup_date` = `{{DLV - user.signup_date}}`, `player_level` = `{{DLV - user.player_level}}` |
 | More Settings > Ecommerce > Send Ecommerce data | unchecked |
-| Triggering | `CE - GA4 events` |
-
-Event parameter rows (Event Parameter, Value):
+| Triggering | `CE - page_view_spa`, `CE - set_user_properties`, `CE - sign_up`, `CE - login`, `CE - search`, `CE - book_session`, `CE - session_request_responded` |
 
 | Event Parameter | Value |
 |---|---|
-| `search_term` | `{{DLV - search_term}}` |
-| `filter_level` | `{{DLV - filter_level}}` |
-| `filter_city` | `{{DLV - filter_city}}` |
-| `coach_id` | `{{DLV - coach_id}}` |
-| `session_type` | `{{DLV - session_type}}` |
-| `value` | `{{DLV - value}}` |
-| `currency` | `{{DLV - currency}}` |
-| `method` | `{{DLV - method}}` |
+| `user_id` | `{{DLV - user.user_id}}` |
 | `page_path` | `{{DLV - page_path}}` |
 | `page_title` | `{{DLV - page_title}}` |
 | `page_location` | `{{DLV - page_location}}` |
-
-`rec_algorithm` and `rec_score` are not in this table: they only exist on `select_item`, which this tag never sends. They live on the ecommerce tag below.
+| `method` | `{{DLV - method}}` |
+| `user_role` | `{{DLV - user_role}}` |
+| `search_term` | `{{DLV - search_term}}` |
+| `filter_level` | `{{DLV - filter_level}}` |
+| `filter_city` | `{{DLV - filter_city}}` |
+| `session_request_id` | `{{DLV - session_request_id}}` |
+| `interaction_type` | `{{DLV - interaction_type}}` |
+| `requester_role` | `{{DLV - requester_role}}` |
+| `receiver_id` | `{{DLV - receiver_id}}` |
+| `receiver_role` | `{{DLV - receiver_role}}` |
+| `coach_id` | `{{DLV - coach_id}}` |
+| `session_type` | `{{DLV - session_type}}` |
+| `player_level` | `{{DLV - player_level}}` |
+| `duration_minutes` | `{{DLV - duration_minutes}}` |
+| `value` | `{{DLV - value}}` |
+| `currency` | `{{DLV - currency}}` |
+| `rec_list_id` | `{{DLV - rec_list_id}}` |
+| `rec_algorithm` | `{{DLV - rec_algorithm}}` |
+| `rec_index` | `{{DLV - rec_index}}` |
+| `response` | `{{DLV - response}}` |
+| `responder_role` | `{{DLV - responder_role}}` |
 
 ### 4.3 GA4 - Event - Ecommerce
-
-Sends the four ecommerce events with the `ecommerce` object read from the dataLayer.
 
 | Field | Value |
 |---|---|
@@ -165,15 +190,20 @@ Sends the four ecommerce events with the `ecommerce` object read from the dataLa
 | Measurement ID | `{{GA4 Measurement ID}}` |
 | Event Name | `{{GA4 Event Name}}` |
 | Event Parameters > Event Settings Variable | `{{GA4 Event Settings}}` |
-| Event Parameters (rows) | `rec_algorithm` = `{{DLV - rec_algorithm}}`, `rec_score` = `{{DLV - rec_score}}` |
-| User Properties | Property Name `rec_variant`, Value `{{DLV - rec_variant}}` |
+| Event Parameters (rows) | see table below |
+| User Properties | `rec_variant` = `{{DLV - rec_variant}}`, `user_role` = `{{DLV - user.user_role}}`, `signup_date` = `{{DLV - user.signup_date}}`, `player_level` = `{{DLV - user.player_level}}` |
 | More Settings > Ecommerce > Send Ecommerce data | checked |
 | More Settings > Ecommerce > Data source | Data Layer |
-| Triggering | `CE - GA4 ecommerce events` |
+| Triggering | `CE - view_item_list`, `CE - select_item`, `CE - view_item`, `CE - purchase` |
 
-If the tag shows an option to include user-provided data, leave it unchecked (the container file sets it off).
+| Event Parameter | Value |
+|---|---|
+| `user_id` | `{{DLV - user.user_id}}` |
+| `rec_algorithm` | `{{DLV - rec_algorithm}}` |
+| `rec_score` | `{{DLV - rec_score}}` |
+| `player_level` | `{{DLV - player_level}}` |
 
-Why two event tags: GTM keeps the last `ecommerce` object in its data model. With "Send Ecommerce data" on one tag that fires for every event, `book_session`, `search` and `page_view` would carry the items of the previous ecommerce event. See item 14 in [`DECISIONS.md`](../DECISIONS.md).
+Each tag sends exactly the top-level parameters that the tracking plan lists for the events it fires on (the generator derives these tables from `docs/tracking_plan.csv`). The app resets event-scoped keys on every push, so a parameter only has a value on the events that set it.
 
 ## 5. Import instead of building by hand
 
@@ -183,7 +213,9 @@ Why two event tags: GTM keeps the last `ecommerce` object in its data model. Wit
 4. **Choose an import option**:
    - **Merge** keeps what is already in the workspace and adds the imported items. Then pick **Rename conflicting tags, triggers, and variables** (safe: nothing is lost, duplicates get a new name) or **Overwrite conflicting tags, triggers, and variables** (imported items replace items with the same name).
    - **Overwrite** replaces the whole workspace with the file. Only use it on an empty or disposable workspace.
-5. Review the summary of new, modified and deleted items. Expect 3 tags, 2 triggers and 18 variables added. Click **Confirm**.
+5. Review the summary of new, modified and deleted items. Into an empty container: 3 tags, 11 triggers and 34 variables added. Into a container that has the previous version (GTM-M69PG8QQ today): 11 triggers and 16 variables added, the 3 tags and some existing variables modified. Click **Confirm**.
+
+**Updating a container that already has the previous version** (as GTM-M69PG8QQ does): choose **Merge** > **Overwrite conflicting tags, triggers, and variables**. Do not use Rename for this update: the tag names are the same in both versions, so Rename keeps the old tags next to the new ones and every event reaches GA4 twice. After the import, delete the two old triggers `CE - GA4 events` and `CE - GA4 ecommerce events` (no tag uses them any more). The Tags list should then show exactly 3 tags.
 
 After a Merge, check the Tags list for a second Google tag for `G-GQKEFPELG9` (for example one created when the container was set up). Two Google tags for the same ID send duplicate configuration; keep only `Google tag - GA4`. If anything was renamed during a Rename merge, check that the names in sections 2 to 4 still match exactly.
 
