@@ -328,6 +328,7 @@ async function simulateUser(browser, n, type) {
 
   let page = await context.newPage();
   let dlIndex = 0;
+  let pageEventsFrom = 0;   // index in journey.events where the current page's events start
   const watch = (p) => p.on('pageerror', e => journey.pageErrors.push(e.message.slice(0, 200)));
   watch(page);
 
@@ -357,8 +358,15 @@ async function simulateUser(browser, n, type) {
   };
 
   // Reusable pieces of a journey.
+  const isRecCoaches = e => e.event === 'view_item_list' && e.ecommerce?.item_list_id === 'rec_coaches';
   const dashboardRecs = async () => {
-    await waitFor('view_item_list', e => e.ecommerce?.item_list_id === 'rec_coaches');
+    // The dashboard can render its recommendations before the previous step (log in, sign up) ends;
+    // that step's sync then records view_item_list. Accept it when it came after the latest page
+    // view of the current page and that page view is the dashboard.
+    const recorded = journey.events.slice(pageEventsFrom);
+    const lastView = recorded.findLastIndex(e => e.event === 'page_view_spa');
+    const onDashboard = lastView >= 0 && /\/dashboard$/.test(String(recorded[lastView].page_path ?? '').split('?')[0]);
+    if (!(onDashboard && recorded.slice(lastView + 1).some(isRecCoaches))) await waitFor('view_item_list', isRecCoaches);
     await page.getByTestId('rec-1').waitFor();
   };
   const togglePlayers = async () => {
@@ -568,6 +576,7 @@ async function simulateUser(browser, n, type) {
         page = await context.newPage();
         watch(page);
         dlIndex = 0;
+        pageEventsFrom = journey.events.length;
         await pause(page, 3000, 10_000);
         await load(page, 'dashboard');
         await checkConsentAndGtm(page, journey);
