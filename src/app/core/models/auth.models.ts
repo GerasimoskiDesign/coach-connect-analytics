@@ -67,6 +67,14 @@ export interface AuthResponseDto {
   expiresIn: number;
   emailConfirmed: boolean;
   isOnboarded: boolean;
+  /** Demo mock only: true when this login created the account (unknown email). */
+  accountCreated?: boolean;
+}
+
+/** Result of a login: the user, and whether the demo backend created the account on the fly. */
+export interface LoginResult {
+  user: UserDto;
+  accountCreated: boolean;
 }
 
 export interface LoginRequest {

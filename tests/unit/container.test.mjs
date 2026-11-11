@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, isEcommerce, loadTrackingPlan } from '../../scripts/tracking-plan.mjs';
+import { ROOT, eventLevelKeys, isEcommerce, loadTrackingPlan } from '../../scripts/tracking-plan.mjs';
 import {
   CONTAINER_PATH, DLV_KEYS, GA4_MEASUREMENT_ID, GTM_PUBLIC_ID, INITIALIZATION_ALL_PAGES,
-  buildContainer, dlvName, serialize,
+  USER_ID_KEY, USER_PROPERTIES, buildContainer, dlvName, eventParams, serialize, sourceOf,
 } from '../../gtm/build-container.mjs';
 
 const raw = readFileSync(CONTAINER_PATH, 'utf8');
@@ -17,6 +17,7 @@ const read = (...p) => readFileSync(join(ROOT, ...p), 'utf8');
 
 const param = (entity, key) => entity.parameter.find(p => p.key === key);
 const tableRows = (p) => p.list.map(row => Object.fromEntries(row.map.map(m => [m.key, m.value])));
+const sorted = (list) => [...list].sort();
 
 test('container.json is valid JSON and matches the generator output', () => {
   const parsed = JSON.parse(raw);
@@ -25,6 +26,11 @@ test('container.json is valid JSON and matches the generator output', () => {
 });
 
 const cv = JSON.parse(raw).containerVersion;
+const eventTags = cv.tag.filter(t => t.type === 'gaawe');
+const ecommerceTag = eventTags.find(t => param(t, 'sendEcommerceData').value === 'true');
+const otherTag = eventTags.find(t => param(t, 'sendEcommerceData').value === 'false');
+const tagFor = (e) => (isEcommerce(e) ? ecommerceTag : otherTag);
+const variableByRef = (value) => cv.variable.find(v => `{{${v.name}}}` === value);
 
 test('container version has the sections GTM import expects', () => {
   for (const key of ['container', 'tag', 'trigger', 'variable', 'builtInVariable']) {
@@ -61,6 +67,14 @@ test('variables: measurement ID constant, one DLV v2 per parameter, built-in Eve
   assert.ok(cv.builtInVariable.some(b => b.type === 'EVENT' && b.name === 'Event'));
 });
 
+test('DLVs exist for the account keys and the booking dimensions', () => {
+  const required = [
+    'user.user_id', 'user.user_role', 'user.signup_date', 'user.player_level',
+    'user_role', 'player_level', 'coach_id', 'rec_algorithm', 'rec_index', 'interaction_type',
+  ];
+  for (const key of required) assert.ok(DLV_KEYS.includes(key), `missing DLV for ${key}`);
+});
+
 test('event name lookup maps page_view_spa to page_view and passes the rest through', () => {
   const lookup = cv.variable.find(v => v.name === 'GA4 Event Name');
   assert.equal(lookup.type, 'smm');
@@ -69,54 +83,79 @@ test('event name lookup maps page_view_spa to page_view and passes the rest thro
   assert.deepEqual(tableRows(param(lookup, 'map')), [{ key: 'page_view_spa', value: 'page_view' }]);
 });
 
-test('Google tag: measurement ID, no automatic page_view, rec_variant user property, Initialization trigger', () => {
+const userIdRow = { parameter: 'user_id', parameterValue: `{{${dlvName(USER_ID_KEY)}}}` };
+const userPropertyRows = Object.entries(USER_PROPERTIES).map(([name, key]) => ({ name, value: `{{${dlvName(key)}}}` }));
+
+test('Google tag: measurement ID, no automatic page_view, user_id, user properties, Initialization trigger', () => {
   const g = cv.tag.find(t => t.type === 'googtag');
   assert.equal(param(g, 'tagId').value, '{{GA4 Measurement ID}}');
   assert.deepEqual(g.firingTriggerId, [INITIALIZATION_ALL_PAGES]);
 
-  const config = cv.variable.find(v => `{{${v.name}}}` === param(g, 'configSettingsVariable').value);
-  assert.deepEqual(tableRows(param(config, 'configSettingsTable')), [{ parameter: 'send_page_view', parameterValue: 'false' }]);
+  const config = variableByRef(param(g, 'configSettingsVariable').value);
+  assert.deepEqual(tableRows(param(config, 'configSettingsTable')), [
+    { parameter: 'send_page_view', parameterValue: 'false' },
+    userIdRow,
+  ]);
 
-  const settings = cv.variable.find(v => `{{${v.name}}}` === param(g, 'eventSettingsVariable').value);
-  assert.deepEqual(tableRows(param(settings, 'userProperties')), [{ name: 'rec_variant', value: '{{DLV - rec_variant}}' }]);
+  const settings = variableByRef(param(g, 'eventSettingsVariable').value);
+  assert.deepEqual(tableRows(param(settings, 'eventSettingsTable')), [userIdRow]);
+  assert.deepEqual(tableRows(param(settings, 'userProperties')), userPropertyRows);
+  assert.deepEqual(Object.keys(USER_PROPERTIES), ['rec_variant', 'user_role', 'signup_date', 'player_level']);
 });
 
 test('GA4 event tags: event name lookup, measurement ID override, ecommerce only on the ecommerce tag', () => {
-  const events = cv.tag.filter(t => t.type === 'gaawe');
-  assert.equal(events.length, 2);
-  for (const t of events) {
+  assert.equal(eventTags.length, 2);
+  assert.ok(ecommerceTag && otherTag);
+  for (const t of eventTags) {
     assert.equal(param(t, 'eventName').value, '{{GA4 Event Name}}');
     assert.equal(param(t, 'measurementIdOverride').value, '{{GA4 Measurement ID}}');
+    assert.equal(param(t, 'eventSettingsVariable').value, '{{GA4 Event Settings}}');
     for (const row of tableRows(param(t, 'eventSettingsTable'))) {
-      assert.equal(row.parameterValue, `{{${dlvName(row.parameter)}}}`, `${row.parameter} is not mapped to its DLV`);
+      assert.equal(row.parameterValue, `{{${dlvName(sourceOf(row.parameter))}}}`, `${row.parameter} is not mapped to its DLV`);
     }
+    assert.deepEqual(tableRows(param(t, 'userProperties')), userPropertyRows, `${t.name} user properties`);
   }
-  const ecommerce = events.find(t => param(t, 'sendEcommerceData').value === 'true');
-  const other = events.find(t => param(t, 'sendEcommerceData').value === 'false');
-  assert.ok(ecommerce && other);
-  assert.equal(param(ecommerce, 'getEcommerceDataFrom').value, 'dataLayer');
-
-  // Every DLV except the user property is sent by exactly one of the two tags.
-  const sent = [ecommerce, other].flatMap(t => tableRows(param(t, 'eventSettingsTable')).map(r => r.parameter));
-  assert.deepEqual([...sent].sort(), DLV_KEYS.filter(k => k !== 'rec_variant').sort());
+  assert.equal(param(ecommerceTag, 'getEcommerceDataFrom').value, 'dataLayer');
 });
 
-test('triggers match exactly the tracked event names from the tracking plan', () => {
-  const regexOf = (t) => new RegExp(t.customEventFilter[0].parameter.find(p => p.key === 'arg1').value);
-  const tagFor = (pred) => cv.tag.find(t => t.type === 'gaawe' && pred(param(t, 'sendEcommerceData').value === 'true'));
-  const triggerOf = (t) => cv.trigger.find(x => x.triggerId === t.firingTriggerId[0]);
+test('each event tag sends exactly the top-level parameters of its events, plus user_id', () => {
+  for (const t of eventTags) {
+    const own = plan.filter(e => tagFor(e) === t);
+    const expected = [...new Set(['user_id', ...own.flatMap(eventParams)])];
+    const sent = tableRows(param(t, 'eventSettingsTable')).map(r => r.parameter);
+    assert.deepEqual(sorted(sent), sorted(expected), t.name);
+  }
+  // User properties are never sent as event parameters.
+  for (const t of eventTags) {
+    const sent = tableRows(param(t, 'eventSettingsTable')).map(r => r.parameterValue);
+    for (const key of Object.values(USER_PROPERTIES)) assert.ok(!sent.includes(`{{${dlvName(key)}}}`), `${t.name} sends ${key} as a parameter`);
+  }
+});
 
-  const ecoRe = regexOf(triggerOf(tagFor(isEco => isEco)));
-  const otherRe = regexOf(triggerOf(tagFor(isEco => !isEco)));
-
+test('one custom event trigger per tracking-plan event, on the right tag', () => {
+  assert.equal(cv.trigger.length, plan.length);
   for (const e of plan) {
-    const [own, others] = isEcommerce(e) ? [ecoRe, otherRe] : [otherRe, ecoRe];
-    assert.ok(own.test(e.event), `${e.event} does not fire its tag`);
-    assert.ok(!others.test(e.event), `${e.event} would fire both tags`);
+    const matching = cv.trigger.filter(t => {
+      const f = t.customEventFilter?.[0];
+      return t.type === 'CUSTOM_EVENT' && f?.type === 'EQUALS'
+        && f.parameter.find(p => p.key === 'arg0').value === '{{_event}}'
+        && f.parameter.find(p => p.key === 'arg1').value === e.event;
+    });
+    assert.equal(matching.length, 1, `${e.event}: expected one trigger`);
+    const [trigger] = matching;
+    assert.equal(trigger.name, `CE - ${e.event}`);
+    const firing = eventTags.filter(t => t.firingTriggerId.includes(trigger.triggerId));
+    assert.deepEqual(firing, [tagFor(e)], `${e.event} must fire exactly its own tag`);
   }
-  for (const near of ['page_view', 'purchase_refund', 'xsearch', 'search2', 'gtm.js', 'select_item_x']) {
-    assert.ok(!ecoRe.test(near) && !otherRe.test(near), `regex matches untracked "${near}"`);
-  }
+});
+
+test('EVENT_SCOPED_KEYS in analytics.service.ts matches the event-level parameters of the tracking plan', () => {
+  const source = read('src', 'app', 'core', 'analytics', 'analytics.service.ts');
+  const block = source.match(/const EVENT_SCOPED_KEYS = \[([\s\S]*?)\] as const;/);
+  assert.ok(block, 'EVENT_SCOPED_KEYS not found');
+  const inService = [...block[1].matchAll(/'([^']+)'/g)].map(m => m[1]);
+  const inPlan = [...new Set(plan.flatMap(eventLevelKeys))];
+  assert.deepEqual(sorted(inService), sorted(inPlan));
 });
 
 test('tracking IDs are identical in environments, index.html and the container', () => {

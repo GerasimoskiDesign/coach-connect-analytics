@@ -138,9 +138,14 @@ function newPlayer(email: string, firstName: string, lastName: string, city: str
 
 // ── Sessions ────────────────────────────────────────────────────────────────
 
-function priceFor(receiverId: string, durationMinutes: number): number | null {
-  const coach = coachById(receiverId);
-  return coach ? Math.round(coach.hourlyRate * durationMinutes / 60) : null;
+/**
+ * Same rule as the real backend (SessionRequestService.GetEstimatedPriceAsync):
+ * a session with a coach on either side is priced at that coach's hourly rate,
+ * whoever sent the request. Player-to-player practice is free (null).
+ */
+function priceFor(requesterId: string, receiverId: string, durationMinutes: number): number | null {
+  const rate = findUser(requesterId)?.coachProfile?.hourlyRate ?? findUser(receiverId)?.coachProfile?.hourlyRate;
+  return rate != null ? Math.round(rate * durationMinutes / 60) : null;
 }
 
 function counterpart(r: SessionRequestDto, me: StoredUser) {
@@ -196,7 +201,8 @@ on('POST', '/auth/login', req => {
   const existing = findByEmail(email);
   if (existing) return issueTokens(existing);
   const [first, last] = nameFromEmail(email);
-  return issueTokens(newPlayer(email, first, last, 'Skopje', '+000 00 000 000', 'Player'));
+  // accountCreated lets the app report this as sign_up (method auto_login), not login.
+  return { ...issueTokens(newPlayer(email, first, last, 'Skopje', '+000 00 000 000', 'Player')), accountCreated: true };
 });
 
 on('POST', '/auth/refresh', req => {
@@ -298,7 +304,9 @@ on('GET', '/recommendations/me', (req, _params, ctx) => {
   const me = currentUser(req);
   const profile = me.playerProfile ?? { ...defaultPlayerProfile(), userId: me.userId, firstName: me.firstName,
     lastName: me.lastName, city: me.city, createdAt: me.createdAt };
-  return req.params.get('type') === 'players'
+  // The service puts ?type= in the URL string, not in HttpParams, so read it from the full URL.
+  const type = new URL(req.urlWithParams, 'http://mock.local').searchParams.get('type') ?? req.params.get('type');
+  return type === 'players'
     ? recommendPlayers({ userId: me.userId, city: me.city, skillLevel: profile.skillLevel })
     : recommendCoaches(profile, ctx.recVariant);
 });
@@ -319,7 +327,7 @@ on('POST', '/session-requests', req => {
     tennisClubId: club.id, tennisClubName: club.name, parentRequestId: null, rescheduleCount: 0,
     status: 'Pending', sessionType: receiver.role === 'Coach' || me.role === 'Coach' ? 'CoachPlayer' : 'PlayerPlayer',
     proposedDateTime: dto.proposedDateTime, durationMinutes: dto.durationMinutes, note: dto.note ?? null,
-    createdAt: new Date().toISOString(), estimatedPriceMkd: priceFor(receiver.userId, dto.durationMinutes),
+    createdAt: new Date().toISOString(), estimatedPriceMkd: priceFor(me.userId, receiver.userId, dto.durationMinutes),
   };
   saveRequest(r);
   return r;
@@ -359,7 +367,7 @@ on('POST', '/session-requests/([^/]+)/reschedule', (req, [id]) => {
     ...old, id: randomId(), parentRequestId: old.id, rescheduleCount: old.rescheduleCount + 1,
     status: 'Pending', tennisClubId: club.id, tennisClubName: club.name,
     proposedDateTime: dto.proposedDateTime, durationMinutes: dto.durationMinutes, note: dto.note ?? null,
-    createdAt: new Date().toISOString(), estimatedPriceMkd: priceFor(old.receiverId, dto.durationMinutes),
+    createdAt: new Date().toISOString(), estimatedPriceMkd: priceFor(old.requesterId, old.receiverId, dto.durationMinutes),
   };
   saveRequest(next);
   return next;

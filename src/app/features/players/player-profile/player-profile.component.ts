@@ -199,12 +199,14 @@ const COACHING_STYLE_LABELS: Record<CoachingStyle, string> = {
 
           @if (showBookingButton(p)) {
             <div class="cta">
-              <app-button label="Request a session" variant="dark" (click)="bookingOpen = true" />
+              <app-button label="Request a session" variant="dark" data-testid="request-session" (click)="bookingOpen = true" />
             </div>
             <app-booking-modal
               [visible]="bookingOpen"
               [receiverId]="p.userId"
               [receiverName]="p.firstName + ' ' + p.lastName"
+              receiverRole="Player"
+              [receiverSkillLevel]="p.skillLevel"
               (closed)="bookingOpen = false"
               (submitted)="bookingOpen = false" />
           }

@@ -1,10 +1,10 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { BehaviorSubject, catchError, EMPTY, Observable, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, catchError, EMPTY, map, Observable, switchMap, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { TokenService } from './token.service';
-import { AuthResponseDto, LoginRequest, RegisterRequest, UserDto } from '../models/auth.models';
+import { AuthResponseDto, LoginRequest, LoginResult, RegisterRequest, UserDto } from '../models/auth.models';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -36,11 +36,13 @@ export class AuthService {
     });
   }
 
-  login(req: LoginRequest): Observable<UserDto> {
+  login(req: LoginRequest): Observable<LoginResult> {
     return this.http.post<AuthResponseDto>(`${this.base}/auth/login`, req).pipe(
       tap(res => this.tokenService.setTokens(res.accessToken, res.refreshToken)),
-      switchMap(() => this.http.get<UserDto>(`${this.base}/auth/me`)),
-      tap(user => {
+      switchMap(res => this.http.get<UserDto>(`${this.base}/auth/me`).pipe(
+        map(user => ({ user, accountCreated: res.accountCreated === true })),
+      )),
+      tap(({ user }) => {
         this.tokenService.setUser(user);
         this.currentUser$.next(user);
       })

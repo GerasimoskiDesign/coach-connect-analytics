@@ -130,7 +130,7 @@ export class CheckoutComponent {
       next: p => {
         // The item is the booked session: price is what was paid, quantity 1,
         // so GA4 revenue equals the sum of item price x quantity.
-        this.analytics.purchase(p.transactionId, p.amount, [{ ...coachItem(v.coach), price: p.amount, quantity: 1 }]);
+        this.analytics.purchase(p.transactionId, v.request.id, p.amount, { ...coachItem(v.coach), price: p.amount, quantity: 1 });
         this.payment.set(p);
         this.paying.set(false);
       },

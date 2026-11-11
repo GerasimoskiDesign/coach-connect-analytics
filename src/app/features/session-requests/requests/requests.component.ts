@@ -6,6 +6,10 @@ import { SessionRequestsService } from '../session-requests.service';
 import { NotificationsService } from '../../../core/services/notifications.service';
 import { SessionRequestDto } from '../../../core/models/session-request.models';
 import { RescheduleModalComponent } from '../reschedule-modal/reschedule-modal.component';
+import { AnalyticsService } from '../../../core/analytics/analytics.service';
+import { roleParam } from '../../../core/analytics/analytics-items';
+import { RequestResponse } from '../../../core/analytics/analytics.models';
+import { AuthService } from '../../../core/services/auth.service';
 
 function formatPrice(mkd: number): string {
   return mkd.toLocaleString('en-US') + ' EUR';
@@ -134,18 +138,21 @@ interface ViewState {
                   <div class="card-actions">
                     <button
                       class="action-btn accept"
+                      data-testid="request-accept"
                       [disabled]="actingOn.has(req.id)"
-                      (click)="accept(req.id)">
+                      (click)="accept(req)">
                       Accept
                     </button>
                     <button
                       class="action-btn decline"
+                      data-testid="request-decline"
                       [disabled]="actingOn.has(req.id)"
-                      (click)="decline(req.id)">
+                      (click)="decline(req)">
                       Decline
                     </button>
                     <button
                       class="action-btn reschedule"
+                      data-testid="request-reschedule"
                       [disabled]="actingOn.has(req.id) || remainingReschedules(req) <= 0"
                       (click)="openReschedule(req)">
                       Reschedule
@@ -540,6 +547,8 @@ interface ViewState {
 export class RequestsComponent {
   private readonly sessionService = inject(SessionRequestsService);
   private readonly notificationsService = inject(NotificationsService);
+  private readonly analytics = inject(AnalyticsService);
+  private readonly auth = inject(AuthService);
 
   private readonly incomingRefresh$ = new Subject<void>();
   private readonly pendingRefresh$ = new Subject<void>();
@@ -589,11 +598,13 @@ export class RequestsComponent {
     return 5 - req.rescheduleCount;
   }
 
-  accept(id: string): void {
+  accept(req: SessionRequestDto): void {
+    const id = req.id;
     if (this.actingOn.has(id)) return;
     this.actingOn = new Set([...this.actingOn, id]);
     this.sessionService.accept(id).subscribe({
       next: () => {
+        this.trackResponse(req, 'accepted');
         this.actingOn = new Set([...this.actingOn].filter(x => x !== id));
         this.incomingRefresh$.next();
         this.notificationsService.refresh();
@@ -604,11 +615,13 @@ export class RequestsComponent {
     });
   }
 
-  decline(id: string): void {
+  decline(req: SessionRequestDto): void {
+    const id = req.id;
     if (this.actingOn.has(id)) return;
     this.actingOn = new Set([...this.actingOn, id]);
     this.sessionService.decline(id).subscribe({
       next: () => {
+        this.trackResponse(req, 'declined');
         this.actingOn = new Set([...this.actingOn].filter(x => x !== id));
         this.incomingRefresh$.next();
         this.notificationsService.refresh();
@@ -629,10 +642,19 @@ export class RequestsComponent {
   }
 
   onRescheduled(): void {
+    if (this.rescheduleRequest) this.trackResponse(this.rescheduleRequest, 'rescheduled');
     this.rescheduleOpen = false;
     this.rescheduleRequest = null;
     this.incomingRefresh$.next();
     this.pendingRefresh$.next();
     this.notificationsService.refresh();
+  }
+
+  /** Incoming tab only: the current user is the receiver, so the requester has the other role in a coach session. */
+  private trackResponse(req: SessionRequestDto, response: RequestResponse): void {
+    const responderRole = roleParam(this.auth.currentUser?.role ?? 'Player');
+    const requesterRole = req.sessionType === 'PlayerPlayer' ? 'player'
+      : responderRole === 'coach' ? 'player' : 'coach';
+    this.analytics.sessionRequestResponded({ sessionRequestId: req.id, response, responderRole, requesterRole });
   }
 }

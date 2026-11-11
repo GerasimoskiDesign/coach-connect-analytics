@@ -5,6 +5,8 @@ import { TennisClubsService } from '../tennis-clubs.service';
 import { SessionRequestsService } from '../session-requests.service';
 import { SessionRequestDto, TennisClubDto } from '../../../core/models/session-request.models';
 import { AnalyticsService } from '../../../core/analytics/analytics.service';
+import { roleParam } from '../../../core/analytics/analytics-items';
+import { AuthService } from '../../../core/services/auth.service';
 
 interface CalDay {
   date: Date;
@@ -954,6 +956,10 @@ const DURATIONS = [60, 90, 120, 150, 180, 210, 240];
 export class BookingModalComponent {
   @Input({ required: true }) receiverId!: string;
   @Input({ required: true }) receiverName!: string;
+  /** Role of the receiver, for analytics (who books whom). */
+  @Input({ required: true }) receiverRole!: 'Player' | 'Coach';
+  /** Skill level of the receiver when it is a player, for analytics. */
+  @Input() receiverSkillLevel?: number;
   @Input() coachClub?: string;
   @Input() hourlyRate?: number;
   @Input() discountPercent: number = 0;
@@ -965,6 +971,7 @@ export class BookingModalComponent {
   private readonly clubsService = inject(TennisClubsService);
   private readonly sessionService = inject(SessionRequestsService);
   private readonly analytics = inject(AnalyticsService);
+  private readonly auth = inject(AuthService);
 
   readonly DOW_LABELS = DOW_LABELS;
   readonly TIME_SLOTS = TIME_SLOTS;
@@ -1026,13 +1033,6 @@ export class BookingModalComponent {
     const dur = this.form.getRawValue().durationMinutes;
     const clubName = this.clubs().find(c => c.id === this.form.getRawValue().tennisClubId)?.name ?? '';
     return `${dur}-minute session${clubName ? ' · ' + clubName : ''}`;
-  }
-
-  /** Price the player will pay, after any loyalty discount. 0 for free practice sessions. */
-  private get finalPrice(): number {
-    if (!this.hourlyRate) return 0;
-    const dur = this.form.getRawValue().durationMinutes;
-    return Math.round(this.hourlyRate * dur / 60 * (1 - this.discountPercent / 100));
   }
 
   get summaryOriginalPrice(): string | null {
@@ -1121,10 +1121,16 @@ export class BookingModalComponent {
       note:            v.note || undefined,
     }).subscribe({
       next: (created) => {
+        // Price as the backend stored it: a coach on either side makes it a paid session.
         this.analytics.bookSession({
-          coach_id: this.hourlyRate ? this.receiverId : 'none',
-          session_type: this.hourlyRate ? 'coaching' : 'practice',
-          value: this.finalPrice,
+          sessionRequestId: created.id,
+          requesterId: created.requesterId,
+          requesterRole: roleParam(this.auth.currentUser?.role ?? 'Player'),
+          receiverId: created.receiverId,
+          receiverRole: roleParam(this.receiverRole),
+          receiverSkillLevel: this.receiverSkillLevel,
+          durationMinutes: created.durationMinutes,
+          value: created.estimatedPriceMkd ?? 0,
         });
         this.loading = false;
         this.selectedDate = null;

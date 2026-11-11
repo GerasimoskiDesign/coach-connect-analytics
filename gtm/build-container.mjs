@@ -4,28 +4,43 @@
 //   node gtm/build-container.mjs           write gtm/container.json
 //   node gtm/build-container.mjs --check   exit 1 if the file is out of date
 //
-// Event names come from docs/tracking_plan.csv so the trigger regexes always
-// match the tracking plan exactly.
+// Event names and parameters come from docs/tracking_plan.csv: one custom event
+// trigger per event, and each GA4 event tag sends exactly the top-level
+// parameters of the events it fires on.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, isEcommerce, loadTrackingPlan } from '../scripts/tracking-plan.mjs';
+import { ROOT, allParameters, isEcommerce, loadTrackingPlan } from '../scripts/tracking-plan.mjs';
 
 export const GA4_MEASUREMENT_ID = 'G-GQKEFPELG9';
 export const GTM_PUBLIC_ID = 'GTM-M69PG8QQ';
 export const INITIALIZATION_ALL_PAGES = '2147479573';
 
-/** Data Layer Variables (v2), one per custom parameter. */
-export const DLV_KEYS = [
-  'search_term', 'filter_level', 'filter_city', 'rec_algorithm', 'rec_score',
-  'coach_id', 'session_type', 'value', 'currency', 'method', 'rec_variant',
-  'page_path', 'page_title', 'page_location',
-];
+/** dataLayer key holding the User-ID. Sent to GA4 as `user_id`. */
+export const USER_ID_KEY = 'user.user_id';
 
-/** Parameters sent by the ecommerce tag, on top of the ecommerce object (select_item). */
-const ECOMMERCE_EXTRA_PARAMS = ['rec_algorithm', 'rec_score'];
-/** Parameters sent by the non-ecommerce event tag. rec_variant is a user property, not a parameter. */
-const EVENT_PARAMS = DLV_KEYS.filter(k => k !== 'rec_variant' && !ECOMMERCE_EXTRA_PARAMS.includes(k));
+/** GA4 user properties and the dataLayer key each one reads. */
+export const USER_PROPERTIES = {
+  rec_variant: 'rec_variant',
+  user_role: 'user.user_role',
+  signup_date: 'user.signup_date',
+  player_level: 'user.player_level',
+};
+
+/** Top-level parameters of a plan entry that a GA4 event tag sends (user properties excluded). */
+export const eventParams = (e) =>
+  allParameters(e).filter(p => !p.includes('.') && !Object.values(USER_PROPERTIES).includes(p));
+
+const uniq = (list) => [...new Set(list)];
+
+/** Data Layer Variables (v2): every top-level parameter in the plan, plus the account keys. */
+export function dlvKeys(plan = loadTrackingPlan()) {
+  return uniq([...plan.flatMap(eventParams), USER_ID_KEY, ...Object.values(USER_PROPERTIES)]);
+}
+export const DLV_KEYS = dlvKeys();
+
+/** GA4 parameter name -> dataLayer key, where they differ. */
+export const sourceOf = (param) => (param === 'user_id' ? USER_ID_KEY : param);
 
 const ACCOUNT = '0';
 const CONTAINER = '0';
@@ -40,14 +55,12 @@ const list = (key, items) => ({ type: 'LIST', key, list: items });
 export const dlvName = (key) => `DLV - ${key}`;
 const ref = (name) => `{{${name}}}`;
 
-function regexFor(events) {
-  return `^(${events.map(e => e.event).join('|')})$`;
-}
-
 export function buildContainer() {
   const plan = loadTrackingPlan();
   const ecommerceEvents = plan.filter(isEcommerce);
   const otherEvents = plan.filter(e => !isEcommerce(e));
+  const ecommerceParams = uniq(ecommerceEvents.flatMap(eventParams));
+  const otherParams = uniq(otherEvents.flatMap(eventParams));
 
   let nextId = 1;
   const id = () => String(nextId++);
@@ -61,7 +74,7 @@ export function buildContainer() {
 
   const measurementId = variable('GA4 Measurement ID', 'c', [tpl('value', GA4_MEASUREMENT_ID)]);
 
-  for (const key of DLV_KEYS) {
+  for (const key of dlvKeys(plan)) {
     variable(dlvName(key), 'v', [int('dataLayerVersion', 2), bool('setDefaultValue', false), tpl('name', key)]);
   }
 
@@ -73,54 +86,65 @@ export function buildContainer() {
     tpl('defaultValue', '{{Event}}'),
   ]);
 
-  // Disables the automatic page_view on load: page views come only from page_view_spa.
+  const userIdRow = map({ parameter: 'user_id', parameterValue: ref(dlvName(USER_ID_KEY)) });
+  const userPropertyRows = () => Object.entries(USER_PROPERTIES).map(([name, key]) => map({ name, value: ref(dlvName(key)) }));
+
+  // Disables the automatic page_view on load (page views come only from
+  // page_view_spa) and sets the User-ID when the page loads signed in.
   const configSettings = variable('GA4 Configuration Settings', 'gtcs', [
-    list('configSettingsTable', [map({ parameter: 'send_page_view', parameterValue: 'false' })]),
+    list('configSettingsTable', [map({ parameter: 'send_page_view', parameterValue: 'false' }), userIdRow]),
   ]);
 
-  // Shared user property for every GA4 hit: the recommendation A/B variant.
+  // Shared settings for every GA4 hit: the User-ID (per event, so it follows a
+  // login or logout inside the single-page app) and the user properties.
   const eventSettings = variable('GA4 Event Settings', 'gtes', [
-    list('userProperties', [map({ name: 'rec_variant', value: ref(dlvName('rec_variant')) })]),
+    list('eventSettingsTable', [userIdRow]),
+    list('userProperties', userPropertyRows()),
   ]);
 
   // ── Triggers ─────────────────────────────────────────────────────────────
   const triggers = [];
-  const trigger = (name, events) => {
+  // One custom event trigger per tracked event, exact match on the event name.
+  const trigger = (name) => {
     const triggerId = id();
     triggers.push({
-      ...base, triggerId, name, type: 'CUSTOM_EVENT',
+      ...base, triggerId, name: `CE - ${name}`, type: 'CUSTOM_EVENT',
       customEventFilter: [{
-        type: 'MATCH_REGEX',
-        parameter: [tpl('arg0', '{{_event}}'), tpl('arg1', regexFor(events))],
+        type: 'EQUALS',
+        parameter: [tpl('arg0', '{{_event}}'), tpl('arg1', name)],
       }],
       fingerprint: FINGERPRINT,
     });
     return triggerId;
   };
 
-  const otherTrigger = trigger('CE - GA4 events', otherEvents);
-  const ecommerceTrigger = trigger('CE - GA4 ecommerce events', ecommerceEvents);
+  const otherTriggers = otherEvents.map(e => trigger(e.event));
+  const ecommerceTriggers = ecommerceEvents.map(e => trigger(e.event));
 
   // ── Tags ─────────────────────────────────────────────────────────────────
   const tags = [];
   const tag = (name, type, parameter, firingTriggerId) => {
     tags.push({
       ...base, tagId: id(), name, type, parameter, fingerprint: FINGERPRINT,
-      firingTriggerId: [firingTriggerId], tagFiringOption: 'ONCE_PER_EVENT',
+      firingTriggerId, tagFiringOption: 'ONCE_PER_EVENT',
       monitoringMetadata: { type: 'MAP' }, consentSettings: { consentStatus: 'NOT_SET' },
     });
   };
 
-  const eventTable = (keys) => list('eventSettingsTable', keys.map(k => map({ parameter: k, parameterValue: ref(dlvName(k)) })));
-  // Also set directly on each event tag, so the user property is present even
-  // if the shared Event Settings variable is edited or detached later.
-  const userProps = list('userProperties', [map({ name: 'rec_variant', value: ref(dlvName('rec_variant')) })]);
+  // user_id and the user properties are also set directly on each event tag, so
+  // they are present even if the shared Event Settings variable is edited or
+  // detached later.
+  const eventTable = (keys) => list('eventSettingsTable', [
+    userIdRow,
+    ...keys.map(k => map({ parameter: k, parameterValue: ref(dlvName(sourceOf(k))) })),
+  ]);
+  const userProps = list('userProperties', userPropertyRows());
 
   tag('Google tag - GA4', 'googtag', [
     tpl('tagId', ref(measurementId)),
     tpl('configSettingsVariable', ref(configSettings)),
     tpl('eventSettingsVariable', ref(eventSettings)),
-  ], INITIALIZATION_ALL_PAGES);
+  ], [INITIALIZATION_ALL_PAGES]);
 
   tag('GA4 - Event - Custom and recommended', 'gaawe', [
     bool('sendEcommerceData', false),
@@ -128,9 +152,9 @@ export function buildContainer() {
     tpl('eventName', ref(eventName)),
     tpl('measurementIdOverride', ref(measurementId)),
     tpl('eventSettingsVariable', ref(eventSettings)),
-    eventTable(EVENT_PARAMS),
+    eventTable(otherParams),
     userProps,
-  ], otherTrigger);
+  ], otherTriggers);
 
   // Separate tag so that ecommerce data is only read for ecommerce events. With
   // one tag, the last ecommerce object in the data model would also be attached
@@ -142,13 +166,13 @@ export function buildContainer() {
     tpl('eventName', ref(eventName)),
     tpl('measurementIdOverride', ref(measurementId)),
     tpl('eventSettingsVariable', ref(eventSettings)),
-    eventTable(ECOMMERCE_EXTRA_PARAMS),
+    eventTable(ecommerceParams),
     userProps,
-  ], ecommerceTrigger);
+  ], ecommerceTriggers);
 
   return {
     exportFormatVersion: 2,
-    exportTime: '2026-11-02 00:00:00',
+    exportTime: '2026-11-11 00:00:00',
     containerVersion: {
       path: `accounts/${ACCOUNT}/containers/${CONTAINER}/versions/0`,
       ...base,

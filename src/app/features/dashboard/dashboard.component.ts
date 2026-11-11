@@ -12,7 +12,8 @@ import { CoachPlayerProgressionDto } from '../../core/models/progression.models'
 import { RecommendedCoachDto, RecommendedPlayerDto } from '../../core/models/recommendation.models';
 import { AnalyticsService } from '../../core/analytics/analytics.service';
 import { ExperimentService } from '../../core/analytics/experiment.service';
-import { coachItem } from '../../core/analytics/analytics-items';
+import { coachItem, playerItem } from '../../core/analytics/analytics-items';
+import { RecAlgorithm } from '../../core/analytics/analytics.models';
 
 /** How many recommendations the dashboard shows (and reports in view_item_list). */
 const REC_DISPLAY_COUNT = 5;
@@ -122,10 +123,16 @@ export class DashboardComponent {
         return source$.pipe(
           catchError(() => of([] as (RecommendedCoachDto | RecommendedPlayerDto)[])),
           tap(list => {
-            // Only coach recommendations are bookable items; player matches are not tracked as a list.
-            if (type === 'coaches' && list.length > 0) {
+            // Coach and player recommendations are two separate lists in GA4.
+            if (list.length === 0) return;
+            const shown = list.slice(0, REC_DISPLAY_COUNT);
+            if (type === 'coaches') {
               this.analytics.viewRecommendedList(
-                (list as RecommendedCoachDto[]).slice(0, REC_DISPLAY_COUNT).map(r => coachItem(r, r.rank)),
+                'rec_coaches', (shown as RecommendedCoachDto[]).map(r => coachItem(r, r.rank)), this.recAlgorithm('coaches'),
+              );
+            } else {
+              this.analytics.viewRecommendedList(
+                'rec_players', (shown as RecommendedPlayerDto[]).map(r => playerItem(r, r.rank)), this.recAlgorithm('players'),
               );
             }
           }),
@@ -300,10 +307,18 @@ export class DashboardComponent {
     return 'hourlyRate' in rec ? ['/coaches', rec.userId] : ['/players', rec.userId];
   }
 
-  /** select_item for a recommended coach. index is the 1-based rank shown in the UI. */
+  /** select_item for a recommended coach or player. index is the 1-based rank shown in the UI. */
   trackRecClick(rec: RecommendedCoachDto | RecommendedPlayerDto): void {
-    if (!('hourlyRate' in rec)) return;
-    this.analytics.selectRecommendedItem(coachItem(rec, rec.rank), this.experiment.recVariant, rec.score);
+    if ('hourlyRate' in rec) {
+      this.analytics.selectRecommendedItem('rec_coaches', coachItem(rec, rec.rank), this.recAlgorithm('coaches'), rec.score);
+    } else {
+      this.analytics.selectRecommendedItem('rec_players', playerItem(rec, rec.rank), this.recAlgorithm('players'), rec.score);
+    }
+  }
+
+  /** Coach ranking follows the A/B variant; player matches always use the skill-level match. */
+  private recAlgorithm(type: 'coaches' | 'players'): RecAlgorithm {
+    return type === 'coaches' ? this.experiment.recVariant : 'skill_match';
   }
 
   /** Up to 4 reason bullets from the ML response (empty list if none). */

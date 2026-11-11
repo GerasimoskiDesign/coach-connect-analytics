@@ -69,8 +69,8 @@ export class RegisterComponent {
       playerProfile: null,
       coachProfile: null,
     }).subscribe({
-      next: () => {
-        this.analytics.signUp();
+      next: (user) => {
+        this.analytics.signUp(user, 'email');
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {

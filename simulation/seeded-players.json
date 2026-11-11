@@ -1,0 +1,98 @@
+[
+  {
+    "email": "kaja.zelenko@players.example",
+    "skillLevel": 2
+  },
+  {
+    "email": "leon.pellan@players.example",
+    "skillLevel": 3
+  },
+  {
+    "email": "sara.pellan@players.example",
+    "skillLevel": 6
+  },
+  {
+    "email": "daniel.quirin@players.example",
+    "skillLevel": 1
+  },
+  {
+    "email": "vera.kestrel@players.example",
+    "skillLevel": 1
+  },
+  {
+    "email": "pavel.selvik@players.example",
+    "skillLevel": 2
+  },
+  {
+    "email": "bojan.esterov@players.example",
+    "skillLevel": 8
+  },
+  {
+    "email": "nikola.pellan@players.example",
+    "skillLevel": 9
+  },
+  {
+    "email": "filip.dalmen@players.example",
+    "skillLevel": 3
+  },
+  {
+    "email": "viktor.nesterin@players.example",
+    "skillLevel": 9
+  },
+  {
+    "email": "viktor.ulmen@players.example",
+    "skillLevel": 5
+  },
+  {
+    "email": "sara.zelenko@players.example",
+    "skillLevel": 6
+  },
+  {
+    "email": "mila.arvenski@players.example",
+    "skillLevel": 5
+  },
+  {
+    "email": "lea.tarvel@players.example",
+    "skillLevel": 9
+  },
+  {
+    "email": "sara.nesterin@players.example",
+    "skillLevel": 8
+  },
+  {
+    "email": "david.rostan@players.example",
+    "skillLevel": 2
+  },
+  {
+    "email": "ema.varnov@players.example",
+    "skillLevel": 1
+  },
+  {
+    "email": "luka.ulmen@players.example",
+    "skillLevel": 1
+  },
+  {
+    "email": "kaja.faltin@players.example",
+    "skillLevel": 6
+  },
+  {
+    "email": "ivana.ondrell@players.example",
+    "skillLevel": 2
+  },
+  {
+    "email": "filip.pellan@players.example",
+    "skillLevel": 1
+  },
+  {
+    "email": "lea.ivarsen@players.example",
+    "skillLevel": 7
+  },
+  {
+    "email": "luka.ivarsen@players.example",
+    "skillLevel": 8
+  },
+  {
+    "email": "jana.ivarsen@players.example",
+    "skillLevel": 7
+  }
+]

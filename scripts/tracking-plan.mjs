@@ -33,13 +33,21 @@ export function parseCsv(text) {
   return body.map(r => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ''])));
 }
 
+const splitList = (s) => (s ?? '').split(';').map(p => p.trim()).filter(Boolean);
+
+/**
+ * `parameters` must be present on every push of the event. `optional_parameters`
+ * are only present in some cases (signed in, came from a recommendation); the
+ * trigger column says when.
+ */
 export function loadTrackingPlan() {
   const rows = parseCsv(readFileSync(join(ROOT, 'docs', 'tracking_plan.csv'), 'utf8'));
   return rows.map(r => ({
     event: r.event_name,
     type: r.type,
     trigger: r.trigger,
-    parameters: r.parameters.split(';').map(p => p.trim()).filter(Boolean),
+    parameters: splitList(r.parameters),
+    optionalParameters: splitList(r.optional_parameters),
     keyEvent: r.key_event === 'yes',
     question: r.business_question,
   }));
@@ -47,3 +55,15 @@ export function loadTrackingPlan() {
 
 /** Events whose payload carries an `ecommerce` object. */
 export const isEcommerce = (e) => e.parameters.some(p => p.startsWith('ecommerce.'));
+
+/** Every parameter path of an event, required and optional. */
+export const allParameters = (e) => [...e.parameters, ...e.optionalParameters];
+
+/**
+ * Event-level keys: top-level parameters that describe this one event. They are
+ * reset on every push (EVENT_SCOPED_KEYS in analytics.service.ts). Page keys,
+ * rec_variant and user.* persist and are excluded.
+ */
+export const PERSISTENT_KEYS = ['page_path', 'page_title', 'page_location', 'rec_variant'];
+export const eventLevelKeys = (e) =>
+  allParameters(e).filter(p => !p.includes('.') && !PERSISTENT_KEYS.includes(p));

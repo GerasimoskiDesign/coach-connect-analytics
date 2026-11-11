@@ -183,6 +183,7 @@ const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
                 [visible]="bookingOpen"
                 [receiverId]="c.userId"
                 [receiverName]="c.firstName + ' ' + c.lastName"
+                receiverRole="Coach"
                 [hourlyRate]="c.hourlyRate"
                 [discountPercent]="discountPercent()"
                 (closed)="bookingOpen = false"

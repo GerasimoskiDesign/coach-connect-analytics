@@ -47,8 +47,11 @@ export class LoginComponent {
     this.serverError = null;
     const v = this.form.getRawValue();
     this.authService.login({ email: v.email, password: v.password }).subscribe({
-      next: () => {
-        this.analytics.login();
+      next: ({ user, accountCreated }) => {
+        // The demo backend creates an account for an unknown email at login:
+        // that is a sign-up, not a returning login.
+        if (accountCreated) this.analytics.signUp(user, 'auto_login');
+        else this.analytics.login(user);
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {

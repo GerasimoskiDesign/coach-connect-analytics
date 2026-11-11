@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import {
-  ECOMMERCE_EVENTS, PLAN, UNDEFINED, acceptConsent, dataLayer, events, isEvent,
-  missingPaths, signUp, stubGoogle, waitForEvent,
+  ECOMMERCE_EVENTS, EVENT_LEVEL_KEYS, PLAN, acceptConsent, dataLayer, events, isEvent, logIn,
+  missingPaths, modelAtEvents, ownParameters, seedIncomingRequest, sendBookingRequest, signUp,
+  stubGoogle, waitForEvent,
 } from './helpers';
 import type { Entry } from './helpers';
 
@@ -12,6 +13,10 @@ test.describe.configure({ mode: 'serial' });
 let page: Page;
 let dl: Entry[];
 let variant: string | null;
+let email: string;
+let myId: string;
+let requestId: string;
+let incomingId: string;
 
 const tracked = () => dl.filter((e): e is Record<string, unknown> => isEvent(e) && !String(e['event']).startsWith('gtm.'));
 const only = (name: string) => tracked().filter(e => e['event'] === name);
@@ -23,17 +28,18 @@ const one = (name: string) => {
 const items = (e: Record<string, unknown>) => (e['ecommerce'] as { items: Record<string, unknown>[] }).items;
 
 test.beforeAll(async ({ browser }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   page = await browser.newPage({ baseURL: testInfo.project.use.baseURL });
   await stubGoogle(page);
 
-  const email = `journey.${Date.now()}@example.test`;
+  email = `journey.${Date.now()}@example.test`;
   await page.goto('');
   await acceptConsent(page);
 
   // Sign up, land on the dashboard with recommendations.
   await signUp(page, email);
   await waitForEvent(page, 'view_item_list');
+  myId = await page.evaluate(() => JSON.parse(localStorage.getItem('cc_user')!).userId);
 
   // Search for a coach.
   await page.getByRole('link', { name: 'Coaches', exact: true }).click();
@@ -52,27 +58,30 @@ test.beforeAll(async ({ browser }, testInfo) => {
 
   // Book a 60 minute session next month.
   await page.getByTestId('request-session').click();
-  await page.locator('.club-select').selectOption({ index: 1 });
-  await page.getByRole('button', { name: 'Next month' }).click();
-  await page.locator('.day-btn:not([disabled])').first().click();
-  await page.locator('.slot', { hasText: /^\s*10:00\s*$/ }).click();
-  await page.getByRole('button', { name: 'Send request' }).click();
+  await sendBookingRequest(page);
   await page.waitForURL(/\/checkout\/[0-9a-f-]+$/);
   await waitForEvent(page, 'book_session');
+  requestId = page.url().split('/').at(-1)!;
 
   // Pay.
   await page.getByTestId('pay-now').click();
   await expect(page.getByTestId('payment-confirmed')).toBeVisible();
   await waitForEvent(page, 'purchase');
 
+  // A coach "sent" this player a request (seeded into this browser's mock storage): accept it.
+  const coachId = String(items((await events(page, 'select_item'))[0])[0]['item_id']);
+  incomingId = await seedIncomingRequest(page, { id: coachId, role: 'Coach' });
+  await page.getByRole('link', { name: 'Requests' }).first().click();
+  await page.waitForURL(/\/requests$/);
+  await page.getByTestId('request-accept').click();
+  await waitForEvent(page, 'session_request_responded');
+
   // Log out and back in.
   await page.getByRole('button', { name: 'Log out' }).click();
   await page.waitForURL(/\/login$/);
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByLabel('Password', { exact: true }).fill('demo-pass-123');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL(/\/dashboard$/);
+  await logIn(page, email);
   await waitForEvent(page, 'login');
+  await waitForEvent(page, 'set_user_properties', 3);
 
   dl = await dataLayer(page);
   variant = await page.evaluate(() => localStorage.getItem('cc_rec_variant'));
@@ -97,17 +106,26 @@ test('(b) no event is pushed that the tracking plan does not define', () => {
   expect(tracked().map(e => e['event']).filter(n => !known.has(String(n)))).toEqual([]);
 });
 
+test('(b) no key outside the tracking plan reaches the dataLayer', () => {
+  for (const e of tracked()) {
+    const own = ownParameters(String(e['event']));
+    const topLevel = new Set([...own].map(p => p.split('.')[0]));
+    const extra = Object.keys(e).filter(k => k !== 'event' && !topLevel.has(k) && !EVENT_LEVEL_KEYS.includes(k));
+    expect(extra, `${e['event']} carries keys outside the plan`).toEqual([]);
+  }
+});
+
 test('(b) parameter values are consistent across the funnel', () => {
   expect(variant === 'content_based' || variant === 'popularity').toBe(true);
-  expect(one('set_user_properties')['rec_variant']).toBe(variant);
-  expect(one('sign_up')['method']).toBe('email');
-  expect(one('login')['method']).toBe('email');
+  expect(one('sign_up')).toMatchObject({ method: 'email', user_role: 'player' });
+  expect(one('login')).toMatchObject({ method: 'email', user_role: 'player' });
 
   const search = one('search');
   expect(search).toMatchObject({ search_term: 'serve', filter_level: 'all', filter_city: 'Skopje' });
 
   const list = only('view_item_list')[0];
-  expect(list['ecommerce']).toMatchObject({ item_list_id: 'recommended_coaches', item_list_name: 'Recommended coaches' });
+  expect(list['ecommerce']).toMatchObject({ item_list_id: 'rec_coaches', item_list_name: 'Recommended coaches' });
+  expect(list['rec_algorithm']).toBe(variant);
   expect(items(list).map(i => i['index'])).toEqual([1, 2, 3, 4, 5]);
 
   const select = one('select_item');
@@ -122,14 +140,70 @@ test('(b) parameter values are consistent across the funnel', () => {
   expect(items(view)[0]['item_id']).toBe(coachId);
 
   const book = one('book_session');
-  expect(book).toMatchObject({ coach_id: coachId, session_type: 'coaching', currency: 'EUR' });
+  expect(book).toMatchObject({
+    session_request_id: requestId,
+    interaction_type: 'player_coach',
+    requester_role: 'player',
+    receiver_id: coachId,
+    receiver_role: 'coach',
+    coach_id: coachId,
+    session_type: 'coaching',
+    player_level: 'intermediate', // new sign-ups get skill level 5
+    duration_minutes: 60,
+    currency: 'EUR',
+    rec_list_id: 'rec_coaches',
+    rec_algorithm: variant,
+    rec_index: 1,
+  });
   expect(book['value']).toBe(items(view)[0]['price']); // 60 minutes at the hourly rate
 
   const purchase = one('purchase');
   const p = purchase['ecommerce'] as Record<string, unknown>;
   expect(p['transaction_id']).toMatch(/^CC-[0-9A-F]{8}$/);
   expect(p).toMatchObject({ currency: 'EUR', value: book['value'] });
-  expect(items(purchase)[0]).toMatchObject({ item_id: coachId, price: book['value'], quantity: 1 });
+  expect(purchase['player_level']).toBe('intermediate');
+  expect(items(purchase)[0]).toMatchObject({
+    item_id: coachId, price: book['value'], quantity: 1,
+    item_list_id: 'rec_coaches', item_list_name: 'Recommended coaches', index: 1, rec_algorithm: variant,
+  });
+
+  expect(one('session_request_responded')).toMatchObject({
+    session_request_id: incomingId, response: 'accepted', responder_role: 'player', interaction_type: 'coach_player',
+  });
+});
+
+test('user ID and user properties: set on sign-up and login, cleared on logout', () => {
+  const props = only('set_user_properties');
+  // App start (signed out), sign-up (once the player level is known), login again after logout.
+  expect(props).toHaveLength(3);
+  for (const e of props) expect(e['rec_variant']).toBe(variant);
+  expect(props[0]['user']).toEqual({ user_id: '__undefined__', user_role: '__undefined__', signup_date: '__undefined__', player_level: '__undefined__' });
+  const account = { user_id: myId, user_role: 'player', signup_date: new Date().toISOString().slice(0, 10), player_level: 'intermediate' };
+  expect(props[1]['user']).toEqual(account);
+  expect(props[2]['user']).toEqual(account);
+
+  const seen = modelAtEvents(dl);
+  const signUpAt = seen.findIndex(s => s.event['event'] === 'sign_up');
+  const logoutView = seen.findIndex((s, i) => i > signUpAt && s.event['event'] === 'page_view_spa' && String(s.event['page_path']).endsWith('/login'));
+  const loginAt = seen.findIndex(s => s.event['event'] === 'login');
+  const userId = (i: number) => (seen[i].model['user'] as Record<string, unknown> | undefined)?.['user_id'];
+
+  expect(seen.slice(0, signUpAt).every((_, i) => userId(i) === undefined)).toBe(true);
+  // Every event from sign-up to logout carries the account, sign_up itself included.
+  for (let i = signUpAt; i < logoutView; i++) expect(userId(i), String(seen[i].event['event'])).toBe(myId);
+  expect(userId(logoutView), 'page view after logout').toBeUndefined();
+  expect(userId(loginAt)).toBe(myId);
+});
+
+test('no personal data in the dataLayer', () => {
+  const text = JSON.stringify(dl);
+  expect(text).not.toContain(email);
+  expect(text).not.toContain('@');
+  expect(text).not.toContain('+000 00 000 000');
+  expect(text).not.toContain('Demo Player');
+  for (const e of tracked().filter(x => x['ecommerce'])) {
+    for (const item of items(e)) expect(String(item['item_name'])).toMatch(/^(Coach|Player) [0-9a-f]{8}$/);
+  }
 });
 
 test('(c) every ecommerce event is immediately preceded by { ecommerce: null }', () => {
@@ -144,16 +218,10 @@ test('(c) every ecommerce event is immediately preceded by { ecommerce: null }',
 test('no stale parameters reach later events in the GTM data model', () => {
   // Replay the pushes the way GTM merges them and check each event only carries
   // its own event-scoped parameters.
-  const scoped = ['method', 'search_term', 'filter_level', 'filter_city', 'rec_algorithm',
-    'rec_score', 'coach_id', 'session_type', 'value', 'currency'];
-  const model: Record<string, unknown> = {};
-  for (const entry of dl) {
-    if (Array.isArray(entry)) continue;
-    for (const [k, v] of Object.entries(entry)) model[k] = v === UNDEFINED ? undefined : v;
-    if (!isEvent(entry) || String(entry['event']).startsWith('gtm.')) continue;
-    const own = new Set(PLAN.find(p => p.event === entry['event'])!.parameters);
-    const leaked = scoped.filter(k => !own.has(k) && model[k] !== undefined);
-    expect(leaked, `${entry['event']} would carry stale ${leaked.join(', ')}`).toEqual([]);
+  for (const { event, model } of modelAtEvents(dl)) {
+    const own = ownParameters(String(event['event']));
+    const leaked = EVENT_LEVEL_KEYS.filter(k => !own.has(k) && model[k] !== undefined);
+    expect(leaked, `${event['event']} would carry stale ${leaked.join(', ')}`).toEqual([]);
   }
 });
 
