@@ -12,7 +12,10 @@
     "gtm:check": "node gtm/build-container.mjs --check",
     "test:unit": "node --test \"tests/unit/*.test.mjs\"",
     "test:e2e": "playwright test",
-    "test": "npm run test:unit && npm run test:e2e"
+    "test": "npm run test:unit && npm run test:e2e",
+    "sim": "node simulation/simulate.mjs",
+    "sim:local": "node simulation/simulate.mjs --base-url http://localhost:4300/coach-connect-analytics/ --max-users 3 --pace 0.3 --block-ga",
+    "sim:seed": "node simulation/export-seeded-players.mjs"
   },
   "private": true,
   "dependencies": {
